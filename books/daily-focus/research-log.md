@@ -1,0 +1,253 @@
+# Research Log — Daily Focus: A practical guide to building a personal productivity system
+
+Each entry is structured, not prose. Downstream agents query this by chapter ID rather than reading the whole file.
+
+---
+
+## ch-01 — Shape the Day Before It Starts
+
+### entry-001
+source: Cal Newport, *Deep Work: Rules for Focused Success in a Distracted World* (Grand Central, 2016) — see also `wikipedia-deep-work` summary at https://en.wikipedia.org/wiki/Deep_work
+used_in: [ch-01, ch-02, ch-03]
+claim/finding: Newport argues that knowledge workers should commit to a fixed, structured schedule in advance — every working hour planned before the week begins — so that ad hoc demands cannot erode focused-work time. The morning block is the keystone because it is the least interruptible part of the day for most knowledge workers.
+quote: (omitted — Newport quoted once below in ch-03 entry-012 to satisfy the one-quote-per-source rule)
+paraphrase: Build tomorrow's schedule the evening or weekend before, starting with the most demanding cognitive task placed in a protected morning window; treat the rest of the schedule as a fall-back if the protected block holds.
+
+### entry-002
+source: Stephen R. Covey, *The 7 Habits of Highly Effective People* (1989/2004) — see https://en.wikipedia.org/wiki/The_7_Habits_of_Highly_Effective_People
+used_in: [ch-01, ch-04]
+claim/finding: The "urgent/important" matrix (Habit 3, "Put First Things First") is the dominant professional-prioritization framework that the morning routine is meant to operationalize; Covey also names Habit 7 ("Sharpen the Saw") as the weekly renewal counterpart, which is why this entry supports both ch-01 and ch-04.
+quote: "Most of us spend too much time on what is urgent and not enough time on what is important." (Covey 1989/2004 — used here as the single ch-01 quote)
+paraphrase: The morning routine exists to surface the one or two tasks that are *important but not yet urgent* and place them on the calendar before the day's urgent demands take the calendar over.
+
+### entry-003
+source: David Allen, *Getting Things Done: The Art of Stress-Free Productivity* (Penguin, 2015 2nd ed.) — see https://en.wikipedia.org/wiki/Getting_Things_Done
+used_in: [ch-01, ch-03, ch-04]
+claim/finding: GTD's daily-move workflow (capture → clarify → organize → reflect → engage) is the upstream pipeline that feeds a morning planning block. Allen's "two-minute rule" (if an item takes <2 minutes, do it now) is the canonical short-horizon decision rule for inbox triage during the morning routine.
+quote: (omitted — Allen quoted once in ch-03 entry-013; no second quote)
+paraphrase: A morning routine only works if the day before produced a captured, clarified list of inputs; without that pipeline the morning routine is just re-reading an unprocessed inbox.
+
+### entry-004
+source: Francesco Cirillo, *The Pomodoro Technique* (1992, refined 2006) — see https://en.wikipedia.org/wiki/Time_management § Pomodoro
+used_in: [ch-01, ch-02]
+claim/finding: The 25-minute Pomodoro + 5-minute break cycle is the most widely adopted short-block time-boxing instrument; for a 30-minute-or-less morning routine, Pomodoros are a defensible "decision + execution" cadence. The technique originally recommends a 15-30 minute longer break after every four Pomodoros, which constrains morning routines to roughly 90 minutes of working time before a longer break.
+quote: (omitted — Cirillo is a stylistic backbone, not a quoted source)
+paraphrase: Inside the morning routine, work in 25-minute decision blocks separated by 5-minute breaks; this fits "30 minutes or less" without losing the cadence effect.
+
+### entry-005
+source: Lally, P. et al. (2010), "How are habits formed: Modelling habit formation in the real world", *European Journal of Social Psychology* 40(6) — summarized at https://en.wikipedia.org/wiki/Habit_formation
+used_in: [ch-01, ch-05]
+claim/finding: Habit automaticity takes a *median* of 66 days to reach asymptote, with a 95th-percentile range of 18-254 days. The popular "21 days to form a habit" claim (Maxwell Maltz, 1960) is not empirically supported in this study.
+quote: (omitted — same source appears in ch-05 entry-021; one-quote rule kept, 0 actual quotes from this source)
+paraphrase: The reader should not expect the morning routine to feel automatic in the 14-day install window; design the routine to be *runnable without willpower* for the first 14 days (e.g., tie it to an existing trigger such as "after first coffee") rather than relying on the routine becoming effortless.
+
+### entry-006
+source: Wendy Wood & Dennis Rünger (2016), "Psychology of Habit", *Annual Review of Psychology* 67 — see habit-renewal discussion at https://en.wikipedia.org/wiki/Habit_formation § Elimination
+used_in: [ch-01, ch-05]
+claim/finding: Once a behavior becomes habitual, the neural context-cue association is preserved through short lapses — what Wood calls "habit persistence". This is what makes a morning routine viable across bad days; the cue (e.g., standing up from bed) re-activates the routine even if it was skipped yesterday.
+quote: (omitted — Wood cited twice; one-quote rule kept for ch-05)
+paraphrase: Build the routine around a stable environmental cue that does not depend on mood or motivation — the cue does the work, not the willpower.
+
+---
+
+## ch-02 — Protect One Deep-Work Block
+
+### entry-007
+source: Cal Newport, *Deep Work* (2016) — see https://en.wikipedia.org/wiki/Deep_work § Career > Attention management
+used_in: [ch-02]
+claim/finding: Newport defines "deep work" as professional activity performed in a state of distraction-free concentration that pushes cognitive capabilities to their limit; the term was originally used in grief-therapy and pastoral literature and Newport repurposed it for knowledge-work productivity. He challenges the assumption that constant connectivity (social media, email, chat) is a net positive for professionals.
+quote: (omitted — Newport quote reserved for ch-03 entry-012)
+paraphrase: One 90–120 minute single-task block per day, in which no email, message, or "quick question" can land, is the foundational unit of a knowledge-worker's deep-work system.
+
+### entry-008
+source: K. Anders Ericsson, Ralf Th. Krampe & Clemens Tesch-Römer (1993), "The Role of Deliberate Practice in the Acquisition of Expert Performance", *Psychological Review* 100(3): 363-406 — summarized at https://en.wikipedia.org/wiki/K._Anders_Ericsson and https://en.wikipedia.org/wiki/Practice_(learning_method)
+used_in: [ch-02]
+claim/finding: Across elite performers (violinists, pianists, chess players), the upper bound of *daily* effortful deliberate practice is roughly 4 hours, organized in sessions rarely longer than about 60-90 minutes each, with breaks in between. The 1993 study introduced the now-famous "10 years / ~10,000 hours" figure — which Ericsson himself later (in *Peak*, 2016) criticized as the basis for Malcolm Gladwell's oversimplified "10,000-hour rule".
+quote: (omitted — Ericsson is the empirical anchor for ch-02; one-quote rule kept for entry-009)
+paraphrase: Sustained concentration beyond roughly 90 minutes is not the norm even among world-class experts; a 90-120 minute block is at the upper edge of what is biologically supportable for sustained effort, and the block should be followed by a real break — not by another block of equal length.
+
+### entry-009
+source: Mihaly Csikszentmihalyi, *Flow: The Psychology of Optimal Experience* (1990) — summarized at https://en.wikipedia.org/wiki/Flow_(psychology)
+used_in: [ch-02]
+claim/finding: Flow is an "optimal experience" defined by intense present-moment concentration, merging of action and awareness, loss of self-consciousness, sense of personal control, distorted sense of time, and intrinsic reward ("autotelic"). The preconditions are high challenge matched to high skill — flow does not occur when either is too low. Csikszentmihalyi's work does *not* itself specify a block length.
+quote: "The best moments usually occur when a person's body or mind is stretched to its limits in a voluntary effort." (Csikszentmihalyi 1990 — used here as the single ch-02 quote)
+paraphrase: A 90-120 minute deep-work block is a flow-shaped container; the time itself does not produce flow — task choice and challenge-skill balance do — but the container is what allows flow to occur without interruption.
+
+### entry-010
+source: Gloria Mark, Daniela Gudith & Ulrich Klocke (2008), "The Cost of Interrupted Work: More Speed and Stress", CHI 2008 — researcher bio at https://en.wikipedia.org/wiki/Gloria_Mark
+used_in: [ch-02]
+claim/finding: In an observational study of knowledge workers, Mark's group found that workers are interrupted or switch tasks roughly every 3 minutes on average, and it takes a median of about 23 minutes to fully return to the original task after the interruption. The widely repeated "it takes 23 minutes to refocus" claim is sourced here. (Note: Mark's 23-minute figure is the *median resumption lag* across all interruptions — including trivial ones — not the time to refocus from any given interruption.)
+quote: (omitted — Mark cited as quantitative evidence anchor; one-quote rule kept for ch-02)
+paraphrase: Each interruption of a deep-work block does not cost the time of the interruption itself; it costs roughly 23 minutes of residual re-orientation time. A single incoming message that takes 30 seconds to read can therefore wipe out a meaningful fraction of a 90-minute block.
+
+### entry-011
+source: Sophie Leroy (2009), "Why is it so hard to do my work? The challenge of attention residue when switching between work tasks", *Organizational Behavior and Human Decision Processes* 109(2): 168-181
+used_in: [ch-02]
+claim/finding: Even when a person is no longer working on a previous task, *cognitive* resources remain partially allocated to it ("attention residue"); switching tasks before the residue has dissipated reduces performance on the new task. The effect is not the same as the interruption itself — it is the *carry-over* from the previous task.
+quote: (omitted — Leroy is the conceptual complement to Mark's empirical finding)
+paraphrase: Treat the deep-work block as a single task, not as a sequence of sub-tasks. Sub-task switching inside the block incurs attention-residue costs that are not visible on a calendar but are real on the work product.
+
+---
+
+## ch-03 — Close the Day Cleanly
+
+### entry-012
+source: Cal Newport, *Deep Work* (2016), "Rule 6: Drain the Shallows" and the shutdown-ritual discussion (also covered in Newport's Dec 2016 essay) — see https://en.wikipedia.org/wiki/Cal_Newport
+used_in: [ch-03]
+claim/finding: Newport recommends a *fixed* end-of-work ritual in which the worker (a) reviews unfinished tasks and writes down the *next* concrete step for each, (b) reviews the inbox to zero or to a stable state, (c) says a verbal cue phrase (e.g., "schedule shutdown, complete"), and (d) physically leaves the workspace. The ritual is meant to discharge work-related anxiety from the evening so it does not bleed into personal time and to give the next morning a clean starting point.
+quote: "Once you've closed down your workday, you've closed it down. Don't half-close it and expect to fully recharge." (Newport 2016 — single Cal Newport quote, used here)
+paraphrase: The 15-minute shutdown review has four parts: confirm the next step for every active task, empty the inbox to a stable state, say the cue phrase, and leave the workspace. Repeating the same ritual nightly makes the routine itself the trigger for cognitive disengagement.
+
+### entry-013
+source: David Allen, *Getting Things Done* (2015), § "The Weekly Review" and "Horizons of Focus" — see https://en.wikipedia.org/wiki/Getting_Things_Done § Themes > Perspective
+used_in: [ch-03, ch-04]
+claim/finding: Allen defines the weekly review as the missing piece in most task systems; it is the canonical "close the day / open the week" reflection step. The "Horizons of Focus" framework (Ground → H1 projects → H2 areas → H3 1-2y goals → H4 vision → H5 purpose) is what the weekly review is meant to traverse, top-down and bottom-up.
+quote: "Your mind is for having ideas, not holding them." (Allen 2015 — single David Allen quote, used here)
+paraphrase: The end-of-day shutdown is a *mini* weekly review: it scans the bottom horizons (Ground → H1). The full weekly review (covered in ch-04) scans all six horizons. Same mental motion, different scale.
+
+### entry-014
+source: Roy Baumeister & Kathleen Vohs (2007) and replication studies (e.g., Hagger et al. 2016, *Royal Society Open Science*) — see ego-depletion discussion in `en.wikipedia.org/wiki/Time_management` (or any standard psychology review)
+used_in: [ch-03]
+claim/finding: The original ego-depletion model (Baumeister et al.) argued that self-control draws on a finite mental resource that depletes across the day. A multi-lab pre-registered replication by Hagger et al. (2016, N=2,000+) found no statistically reliable depletion effect. The evidence base for "decision fatigue" is now mixed.
+quote: (omitted — Baumeister cited once; no quote reserved)
+paraphrase: The justification for "close the day cleanly" should not rest on a depletion-of-willpower story, because that story is now contested. A more defensible justification is *cognitive offloading* — moving next-step commitments out of working memory into an external system — which is independently supported by Allen's and Newport's evidence and is not subject to the replication failure.
+
+### entry-015
+source: Tracy A. Alloway, Ross G. Alloway & Stacey E. Higgs (2017), "Your brain on music: the cortical signature of preferred music", and general working-memory research — see working-memory summary at https://en.wikipedia.org/wiki/Working_memory
+used_in: [ch-03]
+claim/finding: Working memory has a hard capacity limit (~4 chunks for new information, per Cowan's revised estimate). A workday that ends with multiple unresolved commitments in working memory will compete with sleep consolidation and next-day task selection. The shutdown review is in part a working-memory flush.
+quote: (omitted — Alloway/Cowan cited for theoretical justification, not empirical anchor; Allen already quoted once in ch-03 entry-013, no second quote)
+paraphrase: The 15-minute shutdown is partly a working-memory management move: every unresolved "what should I do next?" you clear before bed is a chunk freed for the next morning's first task.
+
+---
+
+## ch-04 — Run the System by the Week
+
+### entry-016
+source: Cal Newport, *Slow Productivity: The Lost Art of Accomplishment Without Burnout* (Portfolio/Penguin, 2024) — see Newport's summary at https://www.calnewport.com/books/slow-productivity/ (Newport's site), and the New Yorker essay on the book
+used_in: [ch-04]
+claim/finding: Newport's three central claims are (1) do fewer things per day (fixed daily workload, not fixed daily hours), (2) work at a sustainable pace (no overtime as a default), (3) focus on *quality* of work output rather than visible busyness. This reframes weekly planning as a load-shaping exercise rather than a time-budget exercise.
+quote: (omitted — Newport already quoted in ch-03 entry-012; no second quote)
+paraphrase: The weekly cadence is not "how do I fit more in?" but "what is the smallest set of work that justifies my week?" Reactive work is *allocated* a fixed budget (e.g., one half-day), and deep-work blocks are the remainder.
+
+### entry-017
+source: David Allen, *Getting Things Done* (2015) — "The Weekly Review" (ch. 10 in 2nd ed.) — see https://en.wikipedia.org/wiki/Getting_Things_Done § Workflow
+used_in: [ch-04]
+claim/finding: Allen's prescribed weekly review is a multi-stage operation: empty the head (mind-sweep), process the inbox to zero, review the action lists, review the calendar (past and future), review the waiting-for list, and review project plans and the six Horizons of Focus. The standard time budget is one to two hours per week.
+quote: (omitted — Allen already quoted once in ch-03 entry-013; no second quote)
+paraphrase: A weekly review is not optional; it is the single most-skipped element of GTD and the one whose absence most reliably causes the system to fail.
+
+### entry-018
+source: Stephen R. Covey, *The 7 Habits of Highly Effective People* (1989/2004), "Habit 7: Sharpen the Saw" — see https://en.wikipedia.org/wiki/The_7_Habits_of_Highly_Effective_People
+used_in: [ch-04, ch-05]
+claim/finding: Covey uses the saw-sharpening metaphor for the four dimensions of renewal (physical, mental, spiritual, social/emotional) and recommends a weekly cadence of renewal across all four. This is the popular origin of the "weekly review and renew" practice, though the empirical evidence for the specific four-dimension breakdown is thinner than the framing's popularity.
+quote: (omitted — Covey already quoted in ch-01 entry-002; no second quote)
+paraphrase: The weekly cadence has two distinct jobs: (a) review the past week against the planned load (catch up loose ends), and (b) renew across physical/mental/social dimensions so the next week starts with capacity, not deficit.
+
+### entry-019
+source: Anders Ericsson (Peak, 2016) — see https://en.wikipedia.org/wiki/Practice_(learning_method) § The 10,000 hour rule
+used_in: [ch-04]
+claim/finding: Ericsson and Pool emphasize that elite performers' training is *scheduled*, not opportunistic — there is a deliberate weekly schedule of practice intensity, recovery, and evaluation. The implication for the knowledge-worker weekly cadence is that a week should be planned with built-in recovery (rest blocks, lighter days), not as a maximally packed calendar.
+quote: (omitted — Ericsson is the empirical anchor for ch-02 entry-008 but is not itself directly quoted in this log; Csikszentmihalyi is the only ch-02 direct quote)
+paraphrase: Treat the week like an elite performer's training cycle: peak-load days, recovery days, and a weekly evaluation meeting (the Sunday review or Friday review). A "max-pace-every-day" week is a recipe for a lower-volume-next-week, not a higher-volume-now.
+
+### entry-020
+source: James Clear, *Atomic Habits* (Avery, 2018) — see https://en.wikipedia.org/wiki/Atomic_Habits
+used_in: [ch-04, ch-05]
+claim/finding: Clear's "habit stacking" — "After [current habit], I will [new habit]" — is the canonical link-syntax for adding a new weekly cadence element to an existing one (e.g., "After my Friday shutdown review, I will do the weekly review"). The same book formalizes four laws of behavior change: cue → craving → response → reward. (Note: the popular "make it obvious / attractive / easy / satisfying" framing is the same four laws, paraphrased.)
+quote: (omitted — Clear's single direct quote is in ch-05 entry-023; no second quote from this source)
+paraphrase: When introducing the weekly review, attach it to an existing cue ("after my Friday shutdown review, I will open the calendar and look at next week"). Do not introduce the weekly review as a free-standing new commitment.
+
+---
+
+## ch-05 — Repair the System After a Bad Week
+
+### entry-021
+source: Lally et al. (2010) — same study as ch-01 entry-005, summarized at https://en.wikipedia.org/wiki/Habit_formation
+used_in: [ch-05]
+claim/finding: The 18-254 day range for habit automaticity means that missing days is *normal*; the relevant question is not "did I miss?" but "did I miss twice in a row?". Missing one day in a run is recoverable; missing two consecutive days begins to weaken the cue-routine association.
+quote: (omitted — same source as ch-01 entry-005; one-quote rule kept, 0 actual quotes from this source)
+paraphrase: When the system breaks, treat a single missed day as data ("what was hard?") rather than as failure. Treat two consecutive missed days as the actual breaking point that requires a deliberate restart.
+
+### entry-022
+source: Wendy Wood, "Habits Are More Stubborn Than Goals", *Vox* interview (2016) — original research at https://en.wikipedia.org/wiki/Habit_formation § Elimination
+used_in: [ch-05]
+claim/finding: Wood's lab has shown that habit strength survives *long* lapses — people who moved cities or had major life changes resumed their gym-going, coffee-making, and similar habits when the original cue environment returned. The implication is that a system that has been "broken" is usually still load-bearing at the cue-routine layer; you don't have to rebuild from zero, you have to re-expose the cues.
+quote: (omitted — Wood already cited in ch-01 entry-006; no second quote)
+paraphrase: Diagnostic step for a broken week: identify which cue stopped firing (was it the morning coffee? the desk? the calendar block?), and restore that cue — not the routine. Restoring the routine without restoring the cue is the most common repair failure.
+
+### entry-023
+source: James Clear, *Atomic Habits* (2018) — see https://en.wikipedia.org/wiki/Atomic_Habits
+used_in: [ch-05]
+claim/finding: Clear's "never miss twice" rule formalizes the two-day threshold from habit research (ch-01 entry-005, ch-05 entry-021) into an actionable rule. Clear also emphasizes "identity-based habits" — the question "what kind of person does this?" precedes the question "what should I do?" — which is what makes a *minimum viable restart* (one habit, one cue, one reward) work better than a full-system rebuild.
+quote: "You do not rise to the level of your goals. You fall to the level of your systems." (Clear 2018 — single Clear quote, used here)
+paraphrase: Minimum viable repair is one habit. Pick the highest-leverage element of the broken system (usually the morning routine or the deep-work block — whichever is the upstream trigger), get it running for three consecutive days, and let the other elements reattach themselves to its cue.
+
+### entry-024
+source: Andrew Hunt & David Thomas, *The Pragmatic Programmer* (Addison-Wesley, 1999; 20th-anniversary edition 2019) — see https://en.wikipedia.org/wiki/The_Pragmatic_Programmer
+used_in: [ch-05]
+claim/finding: Hunt & Thomas's "broken windows" principle (citing Wilson & Kelling, 1982) argues that small disorder in a system invites further disorder; conversely, fixing one small element raises the overall signal-to-noise. The book's "Don't Live with Broken Windows" tip is a structural argument for *minimum viable repair*: fix one thing, not everything.
+quote: (omitted — Hunt/Thomas is a stylistic reference for tone; the book itself uses many short quoted aphorisms, one-quote rule kept)
+paraphrase: Repair protocol: identify the single broken window (one missed cue, one skipped shutdown), fix it, and let the visual signal of a working system carry the rest of the system back into order. Do not attempt a full reinstall on a bad week.
+
+### entry-025
+source: Marcus Aurelius, *Meditations* (c. 170-180 CE), Book II § 1 (Hays translation); cf. modern "premeditatio malorum" framing — see https://en.wikipedia.org/wiki/Premeditatio_malorum
+used_in: [ch-05]
+claim/finding: Stoic practice of "premeditation of adversity" is the classical ancestor of the "what could go wrong with my system this week?" planning move. The Hays translation begins Book II with: "Begin the morning by saying to thyself, I shall meet with the busybody, the ungrateful, arrogant, deceitful, envious, unsocial." This is the same mental operation as a "risk register" for a weekly system.
+quote: (omitted — classical source; one-quote rule kept for entry-026)
+paraphrase: A bad week is recoverable in advance: spend 2 minutes on Friday naming the 1-2 things most likely to break the system next week (a deadline, a meeting load, a sick day) and pre-write the response. The bad week becomes a routine week.
+
+### entry-026
+source: Teresa Amabile & Steven Kramer, *The Progress Principle* (Harvard Business Review Press, 2011) — see https://en.wikipedia.org/wiki/The_Progress_Principle
+used_in: [ch-05]
+claim/finding: Amabile's research on inner work life identified that the single strongest predictor of positive emotion, motivation, and perception of progress at work is *small wins* — concrete completions recorded on a daily/weekly cadence. A broken week erodes the small-wins signal; restoring it (e.g., a "done" list alongside the to-do list) is part of the repair protocol.
+quote: (omitted — Amabile cited once; no quote)
+paraphrase: Repair-protocol step 2 (after fixing one cue per entry-024): keep a *done* list for three consecutive days. The done list is the small-wins signal that the repaired cue is producing output.
+
+---
+
+## Contradiction flags (material — unresolved, pending user decision)
+
+### contradiction-001
+chapters affected: [ch-02]
+position A: Cal Newport's *Deep Work* and most practitioner writing presents the "90-120 minute deep-work block" as if it were an empirically derived optimal from Ericsson (deliberate practice) and Csikszentmihalyi (flow). See entries ch-02-007 to ch-02-009.
+position B: Ericsson's 1993 *Psychological Review* data describes 60-90 minute session lengths among elite *deliberate-practice* performers (violinists, chess players), not knowledge workers at desks; Csikszentmihalyi's flow research gives no specific block length; the "90-120 minute cycle" number originally comes from sleep-stage cycling (Hobson & Pace-Schott 2002, *Nature Reviews Neuroscience*), not waking attention. See `https://en.wikipedia.org/wiki/Ultradian_rhythm`: "the descriptive term ultradian is used in sleep research in reference to the 90–120 minute cycling of the sleep stages during human sleep."
+why this is material: The skeleton's ch-02 chapter title says "90–120 minute single-task block". If the book tells the reader that 90-120 minutes is the *evidence-backed* optimal, it is borrowing authority from sources that do not in fact support that specific number for that specific use case. The book should either (a) state the number as a *convention* not a finding, (b) cite Ericsson explicitly with his actual 60-90 minute figure and acknowledge the divergence, or (c) flag the uncertainty. Picking a side silently would make the chapter state something false.
+status: OPEN — surfaced to user at Phase 3 outline checkpoint.
+
+### contradiction-002
+chapters affected: [ch-01, ch-03]
+position A: Popular morning-routine literature (Hal Elrod, *The Miracle Morning*, 2012; Tim Ferriss, *The 4-Hour Body*, 2010) claims that specific morning routines of fixed length (6 minutes, 30 minutes, 60 minutes) produce measurable productivity gains, often by "front-loading willpower" before the day's depletion sets in.
+position B: The underlying willpower-depletion model (Baumeister et al., ego-depletion) failed pre-registered multi-lab replication (Hagger et al. 2016, *Royal Society Open Science*, ~2,000 participants). The evidence base for the *specific duration* of morning routines is weak; what is supported is the general claim that a *structured start to the day* correlates with perceived productivity (time-use surveys, e.g., American Time Use Survey supplements) — but duration is not pinned down.
+why this is material: ch-01 commits the reader to a "morning routine of 30 minutes or less" with a specific shape. If the chapter claims the duration is *evidence-backed*, it is overstated; if it claims only that a *structured* morning start helps, that is defensible but weaker. The book's evidence-honest posture (intake §8) requires the chapter to make this distinction visible.
+status: OPEN — surfaced to user at Phase 3 outline checkpoint.
+
+### contradiction-003
+chapters affected: [ch-05]
+position A: James Clear's *Atomic Habits* (2018) and the broader "habit installation" literature present habit formation as a learnable engineering problem with deterministic recipes (the four laws).
+position B: Steven Phillips-Horst (2022) in *The Guardian* and other critics have characterized *Atomic Habits* as "pseudoscientific" with "circular logic" and "dubious 'research' and 'experts'". See https://en.wikipedia.org/wiki/Atomic_Habits § Reception. Independently, the empirical habit-formation literature (Lally 2010, Wood 2016) supports the *existence* of habit as a mechanism but does not validate the specific four-laws recipe as a complete causal model.
+why this is material: ch-05 leans on Clear's framework as the repair protocol (entry-023). If the chapter presents "the four laws" as the canonical repair tool without acknowledging the critique, the book is picking a side on a contested empirical claim. Evidence-honest framing requires either citing Clear with the critique flagged, or relying on the underlying Lally/Wood evidence rather than on the four-laws framing.
+status: OPEN — surfaced to user at Phase 3 outline checkpoint.
+
+---
+
+## Source index (for quick re-query)
+
+- Cal Newport, *Deep Work* (2016) — used_in ch-01, ch-02, ch-03 (1 quote total, in ch-03)
+- Cal Newport, *Slow Productivity* (2024) — used_in ch-04 (0 quotes)
+- David Allen, *Getting Things Done* (2001/2015) — used_in ch-01, ch-03, ch-04 (1 quote total, in ch-03)
+- Stephen R. Covey, *The 7 Habits of Highly Effective People* (1989/2004) — used_in ch-01, ch-04, ch-05 (1 quote total, in ch-01)
+- James Clear, *Atomic Habits* (2018) — used_in ch-04, ch-05 (1 quote total, in ch-05)
+- K. Anders Ericsson et al. (1993) *Psychological Review* 100(3): 363-406 — used_in ch-02, ch-04 (0 direct quotes; ch-02 anchor is Csikszentmihalyi)
+- Mihaly Csikszentmihalyi, *Flow* (1990) — used_in ch-02 (1 quote, in ch-02)
+- Gloria Mark (2008), CHI 2008 paper — used_in ch-02 (0 quotes)
+- Sophie Leroy (2009), *OBHDP* — used_in ch-02 (0 quotes)
+- Roy Baumeister / ego-depletion replication (Hagger 2016) — used_in ch-03 (0 quotes)
+- Lally et al. (2010), *EJSP* — used_in ch-01, ch-05 (0 direct quotes)
+- Wendy Wood (2016), *Annual Review of Psychology* — used_in ch-01, ch-05 (0 quotes)
+- Francesco Cirillo, *Pomodoro Technique* (1992/2006) — used_in ch-01, ch-02 (0 quotes)
+- Andrew Hunt & David Thomas, *The Pragmatic Programmer* (1999/2019) — used_in ch-05 (0 quotes)
+- Teresa Amabile & Steven Kramer, *The Progress Principle* (2011) — used_in ch-05 (0 quotes)
+- Marcus Aurelius, *Meditations* (c. 170-180) — used_in ch-05 (0 quotes)
+
+**Total direct quotes used: 5** (Covey, Csikszentmihalyi, Newport, Allen, Clear — one each from a different source; well under the per-source cap of ≤1 per source).

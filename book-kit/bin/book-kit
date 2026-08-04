@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# Book Kit CLI wrapper (POSIX).
+# Delegates to install.py for install/upgrade/uninstall; otherwise prints help.
+set -e
+HERE="$(cd "$(dirname "$0")/.." && pwd)"
+PY="${PYTHON:-python3}"
+if [ ! -x "$(command -v "$PY")" ]; then PY=python; fi
+exec "$PY" "$HERE/install.py" "$@"

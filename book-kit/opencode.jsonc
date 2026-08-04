@@ -1,0 +1,78 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "version": "0.1.0",
+  "name": "book-kit",
+  "description": "Portable book-writing environment. Master orchestrates the 7-phase book-gen pipeline via book-gen-orchestrator skill.",
+  "agent": {
+    "master": {
+      "model": "default",
+      "prompt_file": "agents_manager/master/SKILL.md",
+      "tools": {
+        "bash": { "permission": "allow" },
+        "read": { "permission": "allow" },
+        "write": { "permission": "allow" },
+        "task": { "permission": "allow" },
+        "webfetch": { "permission": "allow" },
+        "grep": { "permission": "allow" },
+        "glob": { "permission": "allow" }
+      }
+    },
+    "am-research": {
+      "model": "default",
+      "prompt_file": "agents_manager/research/SKILL.md",
+      "tools": {
+        "read": { "permission": "allow" },
+        "write": { "permission": "allow" },
+        "bash": { "permission": "allow" },
+        "webfetch": { "permission": "allow" },
+        "grep": { "permission": "allow" },
+        "glob": { "permission": "allow" }
+      }
+    },
+    "am-planning": {
+      "model": "default",
+      "prompt_file": "agents_manager/planning/SKILL.md",
+      "tools": {
+        "read": { "permission": "allow" },
+        "write": { "permission": "allow" },
+        "bash": { "permission": "allow" },
+        "grep": { "permission": "allow" },
+        "glob": { "permission": "allow" }
+      }
+    },
+    "am-design": {
+      "model": "default",
+      "prompt_file": "agents_manager/design/SKILL.md",
+      "tools": {
+        "read": { "permission": "allow" },
+        "write": { "permission": "allow" },
+        "bash": { "permission": "allow" },
+        "webfetch": { "permission": "allow" },
+        "grep": { "permission": "allow" },
+        "glob": { "permission": "allow" }
+      }
+    },
+    "am-coder": {
+      "model": "default",
+      "prompt_file": "agents_manager/coder/SKILL.md",
+      "tools": {
+        "read": { "permission": "allow" },
+        "write": { "permission": "allow" },
+        "bash": { "permission": "allow" },
+        "grep": { "permission": "allow" },
+        "glob": { "permission": "allow" }
+      }
+    },
+    "am-review": {
+      "model": "default",
+      "prompt_file": "agents_manager/review/SKILL.md",
+      "tools": {
+        "read": { "permission": "allow" },
+        "write": { "permission": "allow" },
+        "bash": { "permission": "allow" },
+        "grep": { "permission": "allow" },
+        "glob": { "permission": "allow" }
+      }
+    }
+  }
+}

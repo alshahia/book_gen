@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<title>Email Mockup Template — am-design</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+:root {
+  --bg: #F2F4F7;
+  --surface: #FFFFFF;
+  --ink: #1A1A1A;
+  --ink-2: #4A4A4A;
+  --ink-3: #8A8A8A;
+  --line: #E8E8E8;
+  --primary: #3B5BFF;
+  --r-sm: 6px; --r-md: 10px;
+  --font-sans: -apple-system, "SF Pro Text", "Inter", Arial, sans-serif;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); font-family: var(--font-sans); color: var(--ink); margin: 0; padding: 32px; }
+.email-frame { width: 600px; max-width: 100%; margin: 0 auto; background: var(--surface); border-radius: 12px; box-shadow: 0 12px 40px -12px rgba(0,0,0,0.15); overflow: hidden; }
+.preview-banner { background: var(--line); padding: 12px 20px; font-size: 12px; color: var(--ink-3); border-bottom: 1px solid #DDD; }
+.from { font-weight: 600; color: var(--ink); margin-bottom: 2px; }
+.subject { color: var(--ink-2); }
+.email-body { padding: 40px 32px; }
+.brand-bar { display: flex; align-items: center; gap: 10px; padding-bottom: 24px; border-bottom: 1px solid var(--line); }
+.brand-logo { width: 32px; height: 32px; border-radius: 8px; background: var(--primary); }
+.brand-name { font-weight: 700; font-size: 16px; }
+h1 { font-size: 26px; font-weight: 700; letter-spacing: -0.01em; margin: 28px 0 12px; }
+p { font-size: 15px; line-height: 1.6; color: var(--ink-2); margin-bottom: 14px; }
+.cta-wrap { text-align: center; margin: 32px 0; }
+.cta { display: inline-block; background: var(--primary); color: #fff !important; padding: 14px 28px; border-radius: var(--r-md); font-weight: 600; font-size: 15px; text-decoration: none; }
+.divider { border: none; border-top: 1px solid var(--line); margin: 32px 0; }
+.info-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.info-table th { text-align: start; padding: 8px 0; color: var(--ink-3); font-weight: 500; }
+.info-table td { padding: 8px 0; color: var(--ink); border-top: 1px solid var(--line); }
+.footer { background: var(--bg); padding: 24px 32px; font-size: 12px; color: var(--ink-3); text-align: center; }
+.footer a { color: var(--ink-3); text-decoration: underline; }
+.note { font-family: ui-monospace, monospace; background: #FFF7CC; padding: 1px 6px; border-radius: 4px; }
+</style>
+</head>
+<body>
+<div class="email-frame">
+  <div class="preview-banner">
+    <div class="from">Brand &lt;hello@brand.com&gt;</div>
+    <div class="subject">Subject line — what the user sees first</div>
+  </div>
+  <div class="email-body">
+    <div class="brand-bar">
+      <div class="brand-logo"></div>
+      <div class="brand-name">Brand</div>
+    </div>
+    <h1>Hello, [first name].</h1>
+    <p>This is the email body. Lead with one clear ask — what you want the reader to do after reading.</p>
+    <p>Keep paragraphs short. Use a single CTA. Email clients strip most CSS, so prefer inline styles for production.</p>
+    <div class="cta-wrap">
+      <a href="#" class="cta">Primary action</a>
+    </div>
+    <p>If the button doesn't work, copy this link: <a href="#" style="color: var(--primary);">https://brand.com/action</a></p>
+    <hr class="divider">
+    <h1 style="font-size: 18px; margin-top: 0;">Details</h1>
+    <table class="info-table">
+      <tr><th>Order</th><td>#12345</td></tr>
+      <tr><th>Date</th><td>Sep 4, 2026</td></tr>
+      <tr><th>Total</th><td>$48.00</td></tr>
+    </table>
+  </div>
+  <div class="footer">
+    <div>Brand · 123 Market St · City, State 00000</div>
+    <div style="margin-top: 8px;"><a href="#">Unsubscribe</a> · <a href="#">Preferences</a> · <a href="#">View in browser</a></div>
+    <div style="margin-top: 8px; font-size: 11px;">Email template · <span class="note">600px width · table fallback in production</span></div>
+  </div>
+</div>
+</body>
+</html>

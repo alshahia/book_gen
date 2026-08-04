@@ -1,0 +1,187 @@
+{
+  "reducedMotion": {
+    "initWithReduce": {
+      "lenisDefined": false,
+      "auraAnim": "none",
+      "motesAnim": "none",
+      "specularAnim": "none",
+      "mediaFloatAnim": "none",
+      "scrollcueBarAnim": "none",
+      "ctaBackdropAnim": "none",
+      "filmSectionHeight": "720px",
+      "filmFrameOpacities": [
+        {
+          "i": "0",
+          "op": "1"
+        },
+        {
+          "i": "1",
+          "op": "0"
+        },
+        {
+          "i": "2",
+          "op": "0"
+        },
+        {
+          "i": "3",
+          "op": "0"
+        },
+        {
+          "i": "4",
+          "op": "0"
+        },
+        {
+          "i": "5",
+          "op": "0"
+        }
+      ],
+      "reducedMotionActive": true,
+      "matchesReduce": true
+    },
+    "midSessionToggle": {
+      "before": {
+        "reduce": false,
+        "lenisDefined": true,
+        "motesAnim": "mote"
+      },
+      "after": {
+        "reduce": false,
+        "lenisDefined": true,
+        "motesAnim": "none",
+        "scrollY": 0
+      }
+    }
+  },
+  "keyboardNav": {
+    "skipLink": {
+      "href": "#main",
+      "text": "Skip to content"
+    },
+    "firstFocused": {
+      "tag": "A",
+      "cls": "skip-link",
+      "text": "Skip to content",
+      "outline": "rgb(204, 154, 74) solid 2px"
+    },
+    "tabOrder": [
+      {
+        "tag": "A",
+        "cls": "brand",
+        "id": "",
+        "aria": null,
+        "text": "Maison Lumen",
+        "outline": "3px rgb(139, 94, 34) solid"
+      },
+      {
+        "tag": "A",
+        "cls": "",
+        "id": "",
+        "aria": null,
+        "text": "The Atelier",
+        "outline": "3px rgb(139, 94, 34) solid"
+      },
+      {
+        "tag": "A",
+        "cls": "",
+        "id": "",
+        "aria": null,
+        "text": "The Ritual",
+        "outline": "3px rgb(139, 94, 34) solid"
+      },
+      {
+        "tag": "A",
+        "cls": "",
+        "id": "",
+        "aria": null,
+        "text": "The Editions",
+        "outline": "3px rgb(139, 94, 34) solid"
+      },
+      {
+        "tag": "A",
+        "cls": "nav-cta",
+        "id": "",
+        "aria": null,
+        "text": "Discover",
+        "outline": "3px rgb(139, 94, 34) solid"
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "theme-toggle",
+        "id": "",
+        "aria": "Toggle color theme",
+        "text": "",
+        "outline": "3px rgb(139, 94, 34) solid"
+      },
+      {
+        "tag": "A",
+        "cls": "btn btn-primary",
+        "id": "",
+        "aria": null,
+        "text": "Begin the journal",
+        "outline": "3px rgb(139, 94, 34) solid"
+      },
+      {
+        "tag": "A",
+        "cls": "btn btn-primary",
+        "id": "",
+        "aria": null,
+        "text": "Open the journal",
+        "outline": "3px rgb(139, 94, 34) solid"
+      },
+      {
+        "tag": "A",
+        "cls": "btn btn-primary",
+        "id": "",
+        "aria": null,
+        "text": "Shop the editions",
+        "outline": "3px rgb(139, 94, 34) solid"
+      },
+      {
+        "tag": "A",
+        "cls": "btn btn-ghost",
+        "id": "",
+        "aria": null,
+        "text": "View all three",
+        "outline": "3px rgb(139, 94, 34) solid"
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "",
+        "id": "",
+        "aria": "Step 1",
+        "text": "",
+        "outline": "3px rgb(139, 94, 34) solid"
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "",
+        "id": "",
+        "aria": "Step 2",
+        "text": "",
+        "outline": "3px rgb(139, 94, 34) solid"
+      }
+    ],
+    "ctaBeforeArrow": [
+      "true",
+      "false",
+      "false"
+    ],
+    "ctaAfterRight": {
+      "dots": [
+        "true",
+        "false",
+        "false"
+      ],
+      "activeFrame": 0
+    },
+    "ctaAfterLeft": {
+      "activeFrame": 0
+    },
+    "filmAks": "PageDown PageUp",
+    "pageDown": {
+      "before": 0,
+      "after": 965
+    }
+  },
+  "theme": {}
+}

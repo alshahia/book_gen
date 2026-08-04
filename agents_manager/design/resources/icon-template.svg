@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-label="icon-template">
+  <title>Icon Template</title>
+  <desc>24×24 grid with safe area. Replace path with actual icon shape.</desc>
+  <rect x="0.5" y="0.5" width="23" height="23" rx="2" fill="none" stroke="var(--line, #E8E8E2)" stroke-width="0.5" stroke-dasharray="2 2"/>
+  <rect x="2" y="2" width="20" height="20" rx="1" fill="none" stroke="var(--ink-3, #8A8A8A)" stroke-width="0.5" opacity="0.5"/>
+  <circle cx="12" cy="12" r="8" fill="none" stroke="var(--ink-3, #8A8A8A)" stroke-width="0.5" opacity="0.5"/>
+  <path d="M12 4 L12 20 M4 12 L20 12" stroke="var(--ink-3, #8A8A8A)" stroke-width="0.25" opacity="0.3"/>
+  <path d="M8 12 L12 8 L16 12 L12 16 Z" fill="currentColor" opacity="0.4"/>
+</svg>

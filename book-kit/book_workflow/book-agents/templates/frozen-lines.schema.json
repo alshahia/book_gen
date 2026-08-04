@@ -1,0 +1,106 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agents-manager.local/schemas/frozen-lines.schema.json",
+  "$comment": "template: frozen-lines.schema; purpose: Validate immutable chapter-line manifests; phase: frozen; consumers: [book_check.py, build_exports.py, am-review]",
+  "title": "Frozen Lines Manifest",
+  "description": "Schema for books/<slug>/frozen-lines.json.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "chapters"],
+  "properties": {
+    "version": {
+      "description": "Manifest format version.",
+      "const": 1
+    },
+    "chapters": {
+      "description": "Chapter filename to frozen-line records.",
+      "type": "object",
+      "propertyNames": {
+        "pattern": "^ch-[0-9]{2}\\.md$"
+      },
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["frozen_lines"],
+        "properties": {
+          "frozen_lines": {
+            "description": "Lines whose exact bytes must not change without explicit authorization.",
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["line_number", "sha256", "source", "why"],
+              "properties": {
+                "line_number": {
+                  "description": "One-based line number in the chapter file.",
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "sha256": {
+                  "description": "Lowercase SHA-256 digest of the frozen line bytes.",
+                  "type": "string",
+                  "pattern": "^[a-f0-9]{64}$"
+                },
+                "source": {
+                  "description": "Decision, user instruction, or source that froze the line.",
+                  "type": "string",
+                  "minLength": 1
+                },
+                "why": {
+                  "description": "Reason the line must remain unchanged.",
+                  "type": "string",
+                  "minLength": 1
+                },
+                "frozen_at": {
+                  "description": "Recommended ISO-8601 timestamp recording when the line was frozen.",
+                  "type": "string",
+                  "format": "date-time"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "examples": [
+    {
+      "version": 1,
+      "chapters": {
+        "ch-01.md": {
+          "frozen_lines": [
+            {
+              "line_number": 18,
+              "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "source": "decisions-log.md 2026-08-03",
+              "why": "User-approved opening line.",
+              "frozen_at": "2026-08-03T12:00:00Z"
+            },
+            {
+              "line_number": 42,
+              "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+              "source": "bible.md §Established facts / claims",
+              "why": "Canonical claim wording."
+            }
+          ]
+        },
+        "ch-02.md": {
+          "frozen_lines": [
+            {
+              "line_number": 7,
+              "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+              "source": "user checkpoint",
+              "why": "Approved epigraph translation.",
+              "frozen_at": "2026-08-03T12:05:00Z"
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "x-open-questions": [
+    "Which lines are user-approved and must be frozen?",
+    "Which source authorizes each frozen line?",
+    "Should frozen_at be required by project policy?"
+  ]
+}

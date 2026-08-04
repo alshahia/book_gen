@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<title>Brand Identity Template — am-design</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+:root {
+  --bg: #FAFAF7;
+  --paper: #FFFFFF;
+  --ink: #1A1A1A;
+  --ink-2: #4A4A4A;
+  --ink-3: #8A8A8A;
+  --line: #E8E8E2;
+  --primary: #5B7A6B;
+  --primary-deep: #3D5347;
+  --accent: #B8935A;
+  --accent-deep: #8E6E3F;
+  --r-sm: 8px; --r-md: 14px;
+  --font-sans: "Inter", -apple-system, system-ui, sans-serif;
+  --font-display: "Playfair Display", Georgia, serif;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: var(--bg); font-family: var(--font-sans); color: var(--ink); padding: 48px 32px; }
+.brand-sheet { max-width: 1200px; margin: 0 auto; background: var(--paper); border: 1px solid var(--line); border-radius: 18px; overflow: hidden; box-shadow: 0 20px 60px -20px rgba(0,0,0,0.08); }
+.section { padding: 40px 48px; border-bottom: 1px solid var(--line); }
+.section:last-child { border-bottom: none; }
+.eyebrow { font-size: 11px; text-transform: uppercase; letter-spacing: 0.18em; color: var(--accent-deep); margin-bottom: 8px; font-weight: 600; }
+h1 { font-family: var(--font-display); font-size: 42px; font-weight: 700; letter-spacing: -0.01em; line-height: 1.1; }
+h2 { font-family: var(--font-display); font-size: 22px; font-weight: 700; margin-bottom: 16px; }
+h3 { font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--ink-3); margin-bottom: 10px; }
+.logo-block { width: 200px; height: 200px; border-radius: 18px; background: linear-gradient(135deg, var(--primary), var(--primary-deep)); display: flex; align-items: center; justify-content: center; margin-bottom: 20px; }
+.logo-mark { font-family: var(--font-display); font-size: 72px; font-weight: 700; color: var(--bg); letter-spacing: -0.02em; line-height: 1; }
+.swatches { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+.swatch { aspect-ratio: 4/3; border-radius: var(--r-md); padding: 12px; display: flex; flex-direction: column; justify-content: flex-end; font-size: 11px; font-weight: 600; }
+.swatch .hex { font-family: ui-monospace, monospace; font-size: 11px; opacity: 0.85; }
+.swatch.s1 { background: var(--primary); color: #fff; }
+.swatch.s2 { background: var(--primary-deep); color: #fff; }
+.swatch.s3 { background: var(--accent); color: #fff; }
+.swatch.s4 { background: var(--accent-deep); color: #fff; }
+.swatch.s5 { background: var(--bg); color: var(--ink); border: 1px solid var(--line); }
+.swatch.s6 { background: var(--paper); color: var(--ink); border: 1px solid var(--line); }
+.type-display { font-family: var(--font-display); font-size: 64px; font-weight: 700; line-height: 1.1; letter-spacing: -0.02em; margin-bottom: 12px; }
+.type-body { font-size: 18px; line-height: 1.6; color: var(--ink-2); margin-bottom: 8px; }
+.voice-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+.voice-col { background: var(--bg); border-radius: var(--r-md); padding: 20px; }
+.voice-col .do { color: var(--primary-deep); font-weight: 600; }
+.voice-col .dont { color: #B5483A; font-weight: 600; }
+.voice-col ul { list-style: none; padding: 0; margin-top: 12px; }
+.voice-col li { padding: 6px 0; font-size: 14px; color: var(--ink-2); border-bottom: 1px solid var(--line); }
+.voice-col li:last-child { border-bottom: none; }
+.note { font-family: ui-monospace, monospace; background: #FFF7CC; padding: 2px 6px; border-radius: 4px; font-size: 11px; }
+</style>
+</head>
+<body>
+<div class="brand-sheet">
+  <section class="section" style="background: linear-gradient(180deg, var(--bg), var(--paper));">
+    <div class="eyebrow">Brand Identity</div>
+    <h1>Brand Name</h1>
+    <p style="color: var(--ink-2); margin-top: 8px; max-width: 600px;">One-sentence positioning. What the brand does, for whom, and why it matters.</p>
+    <div class="logo-block" style="margin-top: 32px;">
+      <div class="logo-mark">B</div>
+    </div>
+    <p style="font-size: 12px; color: var(--ink-3);">Logo placeholder · replace with real logo when available</p>
+  </section>
+
+  <section class="section">
+    <div class="eyebrow">Color</div>
+    <h2>Palette</h2>
+    <div class="swatches">
+      <div class="swatch s1"><div>Primary</div><div class="hex">#5B7A6B</div></div>
+      <div class="swatch s2"><div>Primary Deep</div><div class="hex">#3D5347</div></div>
+      <div class="swatch s3"><div>Accent</div><div class="hex">#B8935A</div></div>
+      <div class="swatch s4"><div>Accent Deep</div><div class="hex">#8E6E3F</div></div>
+      <div class="swatch s5"><div>Background</div><div class="hex">#FAFAF7</div></div>
+      <div class="swatch s6"><div>Surface</div><div class="hex">#FFFFFF</div></div>
+      <div class="swatch s6" style="background: var(--ink); color: #fff;"><div>Ink</div><div class="hex">#1A1A1A</div></div>
+      <div class="swatch s5" style="background: var(--ink-2); color: #fff;"><div>Ink 2</div><div class="hex">#4A4A4A</div></div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="eyebrow">Typography</div>
+    <h2>Display &amp; Body</h2>
+    <div class="type-display">Display 64 / 1.1</div>
+    <p class="type-body">Body 18 / 1.6 — The quick brown fox jumps over the lazy dog. 0123456789.</p>
+    <p style="font-size: 13px; color: var(--ink-3); margin-top: 16px;">Display: Playfair Display · Body: Inter · Mono: JetBrains Mono</p>
+  </section>
+
+  <section class="section">
+    <div class="eyebrow">Voice &amp; Tone</div>
+    <h2>How we sound</h2>
+    <div class="voice-grid">
+      <div class="voice-col">
+        <h3>Do</h3>
+        <ul>
+          <li>Speak plainly. One idea per sentence.</li>
+          <li>Lead with the user's goal.</li>
+          <li>Specific over general.</li>
+        </ul>
+      </div>
+      <div class="voice-col">
+        <h3>Don't</h3>
+        <ul>
+          <li>Don't hype. No "amazing" or "incredible".</li>
+          <li>Don't apologize for the product.</li>
+          <li>Don't use exclamation marks.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" style="background: var(--bg);">
+    <div class="eyebrow">Brand Identity Template</div>
+    <h2 style="font-size: 16px; font-weight: 500; color: var(--ink-2); font-family: var(--font-sans);">Replace this template with your brand's full identity spec. Sections included: logo, palette, typography, voice. Add: photography, illustration, motion principles.</h2>
+    <p style="margin-top: 12px; font-size: 12px; color: var(--ink-3);"><span class="note">brand.html template</span></p>
+  </section>
+</div>
+</body>
+</html>

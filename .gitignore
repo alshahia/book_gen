@@ -1,0 +1,11 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.tmp-review/
+.cocoindex_code/
+dist/
+*.zip
+*.bak
+*.bak.*
+.DS_Store

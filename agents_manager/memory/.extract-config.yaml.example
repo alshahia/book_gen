@@ -1,0 +1,13 @@
+# Example opt-in config for the extract skill (Phase 5 menu gate).
+#
+# Copy this file to `.extract-config.yaml` (same directory) to opt in. The real
+# `.extract-config.yaml` should be gitignored by the operator; only this
+# `.example` is checked in. See `agents_manager/extract/SKILL.md` "Opt-in
+# gating" and `templates/EXTRACTION.md`.
+#
+# When `extract_enabled: true`, master surfaces option 5 "Extract to template /
+# core knowledge" in the Phase 5b menu. When false or absent, extraction runs
+# only on explicit user request in conversation ("extract this", "template this
+# project"). Mirrors the existing `phase_5_enabled: bool` opt-in pattern.
+
+extract_enabled: false

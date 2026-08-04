@@ -1,0 +1,259 @@
+{
+  "name": "book-kit",
+  "version": "0.1.0",
+  "min_python": "3.8",
+  "engine_files": [
+    {
+      "path": "opencode.jsonc",
+      "engine_owned": true,
+      "sha256": "7aa20bf80d45c367922b03166203b3a18f0c357b2a98fc0fa8fa23864553dbb2"
+    },
+    {
+      "path": "CLAUDE.md",
+      "engine_owned": true,
+      "sha256": "4b5636b61847e43c1617529cfef5f9382aefec8835be29fb56654bea78b67e94"
+    },
+    {
+      "path": "VERSION",
+      "engine_owned": true,
+      "sha256": "6ad9613a455798d6d92e5f5f390ab4baa70596bc869ed6b17f5cdd2b28635f06"
+    },
+    {
+      "path": ".gitattributes",
+      "engine_owned": true,
+      "sha256": "b6376e58a958090c7c20a80ddec976340e714d7995985f1941b6202c3b5cce37"
+    },
+    {
+      "path": "install.py",
+      "engine_owned": true,
+      "sha256": "7412c5e59e9be54b24f9d8f4a1913a8436653b43f33b42d7e22f6536c6b2ef51"
+    },
+    {
+      "path": "manifest.json",
+      "engine_owned": true,
+      "sha256": "4a5fb2861376d9647e32b71f1cf9eb3dfe6b4006302470d02cfcecf18a3ab3f4"
+    },
+    {
+      "path": "bin/book-kit",
+      "engine_owned": true,
+      "sha256": "d11b25ce10c57c55e3a52a909900e5c9b87557268c98397987f4ebe2c0e298c8"
+    },
+    {
+      "path": "bin/book-kit.cmd",
+      "engine_owned": true,
+      "sha256": "d4f447c6fa289c10e4ba985f32c211daa148064bac49f1f8b7fc266510d3d7f7"
+    },
+    {
+      "path": "bin/install-book-kit.bat",
+      "engine_owned": true,
+      "sha256": "64e76011df2f3628e978884c390dc04bbaf29a9e359808c8d2e37a1072ae5e72"
+    },
+    {
+      "path": "scripts/doctor.py",
+      "engine_owned": true,
+      "sha256": "e3ea1fce99fcef11195a1ad2c67848ca9157b7ace7ad9d32a33f8a60ceced2e4"
+    },
+    {
+      "path": "scripts/build_manifest.py",
+      "engine_owned": true,
+      "sha256": "13ecfd93ae171f0de604f9317cbb28ace5e13fad260ce91c4619766b08890384"
+    },
+    {
+      "path": "scripts/build_zip.py",
+      "engine_owned": true,
+      "sha256": "863c3d7ea374ed870998e89b91e12e7a1089854a5e8252a902ddc60db637196f"
+    },
+    {
+      "path": "scripts/smoke_test.py",
+      "engine_owned": true,
+      "sha256": "111c7a54358f01205b6c5c730f28eac95c6d041a4bbee1f46099affab1f669d4"
+    },
+    {
+      "path": "agents_manager/master/SKILL.md",
+      "engine_owned": true,
+      "sha256": "ce9c953e2de9bdf2b7cfa972ef234711c9f3e1a0c6f70389c288266f8f7bf00b"
+    },
+    {
+      "path": "agents_manager/book-gen-orchestrator/SKILL.md",
+      "engine_owned": true,
+      "sha256": "8caa91db3d71d0b7da5922fd82a37b30d8bc563f394c124ce79b02f7dc3ad7dd"
+    },
+    {
+      "path": "agents_manager/book-writer/SKILL.md",
+      "engine_owned": true,
+      "sha256": "85c789ef017bdfbe321ff08f929aeb5b8dfc83c33022b879cb42b704ee88d214"
+    },
+    {
+      "path": "agents_manager/research/SKILL.md",
+      "engine_owned": true,
+      "sha256": "70cc3f7d56b6ac0cf3f54fa4c30125b7ffc8fc880f803a55aec57e585609fc5e"
+    },
+    {
+      "path": "agents_manager/planning/SKILL.md",
+      "engine_owned": true,
+      "sha256": "d6f61c3aae4d47069e9d73c8eb69ee85050e695f3e1e4221db0fa61c006f27c2"
+    },
+    {
+      "path": "agents_manager/design/SKILL.md",
+      "engine_owned": true,
+      "sha256": "f4433871b1812082d92f915d5449511eac57a5953a5e0dc50f7e45e84aae509c"
+    },
+    {
+      "path": "agents_manager/coder/SKILL.md",
+      "engine_owned": true,
+      "sha256": "5d1ef3c5225d41b84882c939ecf09012ccb6590dcaa6a5a848b8c51df8853962"
+    },
+    {
+      "path": "agents_manager/review/SKILL.md",
+      "engine_owned": true,
+      "sha256": "2f45b65c35e57eaa42e639add0acc75fe72f482bd212362fe56715173da1076f"
+    },
+    {
+      "path": "book_workflow/scripts/book_check.py",
+      "engine_owned": true,
+      "sha256": "6fa0dc42af41f692e5e675e5e4c9bf381c2e289b509776eaf8d61a8ac64e6277"
+    },
+    {
+      "path": "book_workflow/scripts/build_exports.py",
+      "engine_owned": true,
+      "sha256": "7babc2ad785d89683d46d92c3f14977b558d38bf6fc7eee24991375f85e4750f"
+    },
+    {
+      "path": "book_workflow/scripts/strip_publish_annotations.py",
+      "engine_owned": true,
+      "sha256": "38fbb73f7d58fa7d40ff8cdcc3e5ea481517a7ff74d02c4406b813b6cb562f3e"
+    },
+    {
+      "path": "book_workflow/docs/build-exports-spec.md",
+      "engine_owned": true,
+      "sha256": "7c4d7f2a680f52fab682d7393d6a0f394d79e5a330d0b2f41a3f20b00afb6e09"
+    },
+    {
+      "path": "book_workflow/docs/frozen-lines-spec.md",
+      "engine_owned": true,
+      "sha256": "b35610400fc18e94a532f5481a2b6574227e6e10791ca4c66e16f66bd44d74df"
+    },
+    {
+      "path": "book_workflow/book-agents/templates/frozen-lines.schema.json",
+      "engine_owned": true,
+      "sha256": "2b4531d1e128ff12e1783514fade34eebd110228493d9dedf9199a4b7e674afc"
+    },
+    {
+      "path": "book_workflow/book-agents/templates/bible.md",
+      "engine_owned": true,
+      "sha256": "6e70dd62025311e77810f91ce43931ea2403476c987856e96e4699041d42a553"
+    },
+    {
+      "path": "book_workflow/book-agents/templates/decisions-log.md",
+      "engine_owned": true,
+      "sha256": "eef7db5c6d2b9c0d0742fe49181138eea79066c4b219f3c62ab81abb53582539"
+    },
+    {
+      "path": "book_workflow/book-agents/templates/exports-readme.md",
+      "engine_owned": true,
+      "sha256": "1bb885f3d311d2167700f934c34d306b32d9e689bbc2bd4d4e949b05c7146d32"
+    },
+    {
+      "path": "book_workflow/book-agents/templates/glossary.md",
+      "engine_owned": true,
+      "sha256": "f49dd077539aac5a2a2cde37424d6f471c5ed4d323929d900bd9ea3db6f50beb"
+    },
+    {
+      "path": "book_workflow/book-agents/templates/intake.md",
+      "engine_owned": true,
+      "sha256": "7b50185a3a9e0f1a12e1d016c4e4307147ac0841f54636b81efec0409c9ffada"
+    },
+    {
+      "path": "book_workflow/book-agents/templates/ledger.md",
+      "engine_owned": true,
+      "sha256": "7746237c61635e7b774b6c1e7bfeb8e7bdfa43aeb1416e0fbdddc4b71952ea46"
+    },
+    {
+      "path": "book_workflow/book-agents/templates/operational-caps.md",
+      "engine_owned": true,
+      "sha256": "0f5d7c6ef047f5ac5ad4ad06ea0cb65d6254af18199ab5c88ef664b2d1af1901"
+    },
+    {
+      "path": "book_workflow/book-agents/templates/outline.md",
+      "engine_owned": true,
+      "sha256": "cdc5467bc946dfc4b0d54bcbc2fcabe171708f318cd6ce7973823857cee94353"
+    },
+    {
+      "path": "book_workflow/book-agents/templates/preface.md",
+      "engine_owned": true,
+      "sha256": "b570d837c8cdb3550fe2afb8c70d465e38d9bab6b041b921767f8431d69095e4"
+    },
+    {
+      "path": "book_workflow/book-agents/templates/research-log.md",
+      "engine_owned": true,
+      "sha256": "2bd9f4e0e051974849df1960d67048c3f375ff8bfe5390754efd58c998747597"
+    },
+    {
+      "path": "book_workflow/book-agents/templates/skeleton.md",
+      "engine_owned": true,
+      "sha256": "3151e63309cd7f380fab22678cf4a0781b8416d80f44d71d3aaeb9fe6422f848"
+    },
+    {
+      "path": "book_workflow/book-agents/templates/style-guide.md",
+      "engine_owned": true,
+      "sha256": "3ec8b991985d5ed20fc6c88e2bb9d6db7f8b33636a3ae5cdbcff3638754c3193"
+    },
+    {
+      "path": "book_workflow/book-agents/templates/tashkeel-policy.md",
+      "engine_owned": true,
+      "sha256": "0813034da1ddd177e2e9c69455b4a2a1e1be702968ac8fdca2ee6435d6889f5c"
+    },
+    {
+      "path": "book_workflow/book-agents/templates/toc.md",
+      "engine_owned": true,
+      "sha256": "4e7c8015018681851ea3d3910df442b6a7cc373285a53f45ff6ab6685ad9dda6"
+    },
+    {
+      "path": "book_workflow/book-agents/templates/writing-plan.md",
+      "engine_owned": true,
+      "sha256": "0708bc12f6ad17efb39c8f0a88d64b2d50af7fd9cd5368c61d593e2ed5b647a6"
+    },
+    {
+      "path": "docs/QUICKSTART.md",
+      "engine_owned": true,
+      "sha256": "3850376573d3075e17cd095a3e8becad98db7a5e87f08ee7443c31e51cc5bd39"
+    },
+    {
+      "path": "docs/ARCHITECTURE.md",
+      "engine_owned": true,
+      "sha256": "8d502c446a44b3cfa3383f1e2c59e1ac22695ed0b8cd53d5a20fe3e6f4dc5274"
+    },
+    {
+      "path": "docs/TROUBLESHOOTING.md",
+      "engine_owned": true,
+      "sha256": "e95f48dce8992a7a8aa33e33fbd15431e6972f240ddc337ced83b35ece7ed80d"
+    },
+    {
+      "path": "docs/UPGRADE.md",
+      "engine_owned": true,
+      "sha256": "3e17258f40e9ee50c385b40bb6059cfa58225e5f0cf948eb91e9371462ee00a6"
+    }
+  ],
+  "user_files": [
+    {
+      "path": "books/",
+      "engine_owned": false
+    },
+    {
+      "path": "tasks/",
+      "engine_owned": false
+    },
+    {
+      "path": "share/notes/",
+      "engine_owned": false
+    },
+    {
+      "path": "share/handoffs/",
+      "engine_owned": false
+    },
+    {
+      "path": "share/reports/",
+      "engine_owned": false
+    }
+  ]
+}

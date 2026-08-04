@@ -1,0 +1,95 @@
+{
+  "$schema": "./skills-manifest.schema.json",
+  "version": 1,
+  "description": "Declarative skill requirements for agents-manager v0.10.0+. Read by bin/agents-manager (bash) and bin/agents-manager.ps1 (PowerShell). Add new required skills here so the `skills add --all` and `doctor` subcommands pick them up automatically.",
+  "skills": [
+    {
+      "id": "mavis-team",
+      "required": true,
+      "level": "local",
+      "source": "controller",
+      "description": "Mavis multi-agent team coordination. Shipped with the agents-manager controller at <target>/.agents/skills/mavis-team/. Updated when the controller is updated (no separate install command)."
+    },
+    {
+      "id": "dispatching-parallel-agents",
+      "required": true,
+      "level": "global",
+      "source": "obra/superpowers",
+      "install_cmd": "npx --yes skills add https://github.com/obra/superpowers --skill dispatching-parallel-agents -g -y",
+      "update_cmd": "npx --yes skills update https://github.com/obra/superpowers --skill dispatching-parallel-agents -g -y",
+      "description": "Pattern for orchestrating multiple agents in parallel when tasks can be safely divided."
+    },
+    {
+      "id": "subagent-driven-development",
+      "required": true,
+      "level": "global",
+      "source": "obra/superpowers",
+      "install_cmd": "npx --yes skills add https://github.com/obra/superpowers --skill subagent-driven-development -g -y",
+      "update_cmd": "npx --yes skills update https://github.com/obra/superpowers --skill subagent-driven-development -g -y",
+      "description": "Pattern for executing implementation plans in a separate session with review checkpoints."
+    },
+    {
+      "id": "verification-before-completion",
+      "required": true,
+      "level": "global",
+      "source": "obra/superpowers",
+      "install_cmd": "npx --yes skills add https://github.com/obra/superpowers --skill verification-before-completion -g -y",
+      "update_cmd": "npx --yes skills update https://github.com/obra/superpowers --skill verification-before-completion -g -y",
+      "description": "Skill that requires running verification commands before claiming work is complete."
+    },
+    {
+      "id": "systematic-debugging",
+      "required": true,
+      "level": "global",
+      "source": "obra/superpowers",
+      "install_cmd": "npx --yes skills add https://github.com/obra/superpowers --skill systematic-debugging -g -y",
+      "update_cmd": "npx --yes skills update https://github.com/obra/superpowers --skill systematic-debugging -g -y",
+      "description": "Four-phase debugging protocol: investigate, analyze, hypothesize, implement."
+    },
+    {
+      "id": "test-driven-development",
+      "required": true,
+      "level": "global",
+      "source": "obra/superpowers",
+      "install_cmd": "npx --yes skills add https://github.com/obra/superpowers --skill test-driven-development -g -y",
+      "update_cmd": "npx --yes skills update https://github.com/obra/superpowers --skill test-driven-development -g -y",
+      "description": "Red-green-refactor discipline. Write the test first, watch it fail, watch it pass, then refactor."
+    },
+    {
+      "id": "requesting-code-review",
+      "required": true,
+      "level": "global",
+      "source": "obra/superpowers",
+      "install_cmd": "npx --yes skills add https://github.com/obra/superpowers --skill requesting-code-review -g -y",
+      "update_cmd": "npx --yes skills update https://github.com/obra/superpowers --skill requesting-code-review -g -y",
+      "description": "How to ask for code review (what to include, what to leave out)."
+    },
+    {
+      "id": "writing-plans",
+      "required": true,
+      "level": "global",
+      "source": "obra/superpowers",
+      "install_cmd": "npx --yes skills add https://github.com/obra/superpowers --skill writing-plans -g -y",
+      "update_cmd": "npx --yes skills update https://github.com/obra/superpowers --skill writing-plans -g -y",
+      "description": "When a request is large, write a plan first. Skill covers structure + scoping heuristics."
+    },
+    {
+      "id": "executing-plans",
+      "required": true,
+      "level": "global",
+      "source": "obra/superpowers",
+      "install_cmd": "npx --yes skills add https://github.com/obra/superpowers --skill executing-plans -g -y",
+      "update_cmd": "npx --yes skills update https://github.com/obra/superpowers --skill executing-plans -g -y",
+      "description": "How to execute a written plan with checkpoints and rollback rules."
+    },
+    {
+      "id": "brainstorming",
+      "required": true,
+      "level": "global",
+      "source": "obra/superpowers",
+      "install_cmd": "npx --yes skills add https://github.com/obra/superpowers --skill brainstorming -g -y",
+      "update_cmd": "npx --yes skills update https://github.com/obra/superpowers --skill brainstorming -g -y",
+      "description": "One-question-at-a-time idea exploration before implementation."
+    }
+  ]
+}

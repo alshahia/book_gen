@@ -1,0 +1,323 @@
+# Template Authoring Standard (v1)
+
+A template is a reusable scaffold an agent clones to produce a complete artifact
+(landing page, dashboard, CLI, doc site, etc.). This standard governs how
+templates are named, structured, documented, and verified so that:
+
+- An agent can **consume** a template by reading one file (`INDEX.md`)
+- An agent can **author** a new template by following numbered rules
+- An agent can **maintain** a template without breaking its consumers
+
+Exemplar: `templates/cinematic-landing/`.
+Companion: `share/templates/cinematic-landing-fixes.md` (the 9 items the
+exemplar still owes).
+
+This file lives at `templates/AUTHORING.md` once promoted; for now it is
+drafted at `share/templates/AUTHORING.md` for review.
+
+---
+
+## TL;DR — 8 rules
+
+1. **One source of truth per concern.** No duplicated token tables, section
+   lists, or hard rules across files. If two files describe the same thing,
+   one references the other.
+2. **H1 number must equal filename prefix.** `memory/07-reduced-motion.md`
+   opens with `# 07 · Reduced motion — USE THIS WHEN: …`. Always.
+3. **Filenames are monotonic.** New files append at the end with the next
+   number. Do not insert between existing numbers; renumber if you must
+   reorder.
+4. **Every README claim is grep-verifiable.** If the README says "find sections
+   with `data-section=\"hero\"`", that grep must succeed against the skeleton.
+   `tests/verify.sh` runs every such claim.
+5. **Manifest references existing files only.** Every path in
+   `assets/MANIFEST.txt` must resolve in the working tree at template-author
+   time. Cross-tree references to non-existent specialists are forbidden
+   unless explicitly marked `(proposed)`.
+6. **Memory files start with a trigger line.** Format:
+   `# NN · <topic> — USE THIS WHEN: <one-line trigger>`. No exceptions.
+7. **Skeleton obeys its own memory's hard rules.** If memory/04 forbids X, the
+   skeleton must not contain X. Exceptions are stated in the memory itself.
+8. **Acceptance checklist before publishing.** See end of file.
+
+---
+
+## Folder structure (REQUIRED)
+
+```
+templates/<name>/
+  00-readme-first.md        # human orientation; greppable claims only
+  INDEX.md                  # machine-greppable map of every convention
+  decision-log.md           # proposed / accepted / deprecated entries
+  memory/                   # prose contracts per role + topic
+    NN-<topic>-<role>.md    # NN = zero-padded 2-digit, monotonic
+  skeleton/                 # reference implementation
+    index.html
+  prompts/                  # LLM-actionable prompts
+    <stage>.md
+  assets/
+    MANIFEST.txt            # every line must resolve
+    manifest.schema.json    # JSON Schema for MANIFEST
+  tests/
+    verify.sh               # grep-based self-check; CI-runnable
+```
+
+Recommended additions when the template ships motion or multi-locale content:
+
+```
+  motion/                   # motion tokens, easing curves, duration table
+  locales/                  # per-locale overrides (font, numerals, direction)
+```
+
+Forbidden:
+
+- Subdirectories without a README explaining what lives there
+- Memory files outside `memory/` (controller memory is a different lane)
+- Skeleton files outside `skeleton/` (one canonical entry point)
+
+---
+
+## Rule details
+
+### Rule 1 — One source of truth
+
+Bad: `memory/05-theming.md` and `memory/14-dark-theme.md` both list dark
+tokens; the two tables disagree.
+
+Good: `memory/14-dark-theme.md` is canonical. `memory/05-theming.md` has one
+line: *"For dark mode tokens see `memory/14-dark-theme.md`."*
+
+Applies to: token tables, section lists, hard rules, color palettes, motion
+durations, asset lists.
+
+### Rule 2 — H1 = filename prefix
+
+`memory/07-reduced-motion.md` opens:
+
+```
+# 07 · Reduced motion — USE THIS WHEN: shipping animation, transitions,
+# or scroll-driven effects and need to gate the OS-level preference.
+```
+
+If you find the H1 number drifting from the filename, fix one or the other —
+never ship a mismatch.
+
+### Rule 3 — Monotonic filenames
+
+If `memory/04-cinematic-hero.md` and `memory/04-locale-handoff.md` collide,
+renumber the later addition (locale-handoff → `10-locale-handoff.md`) rather
+than inserting between. Inserting forces every consumer to re-grep.
+
+### Rule 4 — Grep-verifiable claims
+
+Every concrete assertion in `00-readme-first.md` becomes a line in
+`tests/verify.sh`:
+
+```bash
+# README claim: "sections use data-section attribute"
+test_data_section_attr() {
+  rg -q 'data-section=' skeleton/index.html || {
+    echo "FAIL: skeleton missing data-section attribute"; exit 1
+  }
+}
+
+test_data_section_attr
+```
+
+Add one test per claim. The script exits non-zero on any failure. Run it
+before every commit.
+
+### Rule 5 — Manifest only references existing files
+
+```text
+# BAD
+agents_manager/assets/SKILL.md          # not in working tree
+agents_manager/assets/notes/branch-decisions.md   # not in working tree
+
+# GOOD
+skeleton/index.html
+skeleton/index.css
+assets/fonts/inter.woff2
+```
+
+If a cross-tree reference is genuinely needed (e.g., to a proposed specialist),
+mark it explicitly:
+
+```text
+agents_manager/assets/SKILL.md  (proposed — see PROPOSAL F2)
+```
+
+…and ensure the proposal is tracked in `decision-log.md`.
+
+### Rule 6 — Trigger lines on memory files
+
+The trigger line is what an agent greps for when deciding whether to load the
+file. Format:
+
+```
+# NN · <topic> — USE THIS WHEN: <imperative one-liner>
+```
+
+Examples:
+
+- `# 04 · Cinematic hero — USE THIS WHEN: designing the hero canvas and need
+  cutout/aura coordination`
+- `# 07 · Reduced motion — USE THIS WHEN: shipping animation or scroll-driven
+  effects`
+- `# 11 · Canvas a11y — USE THIS WHEN: shipping a `<canvas>` that conveys
+  meaning and needs a screen-reader fallback`
+
+No file is allowed to ship without a trigger line.
+
+### Rule 7 — Skeleton obeys its own memory
+
+If `memory/04-cinematic-hero.md` says *"never use the same image with
+`filter: blur()` applied"*, then `skeleton/index.html` does not contain such a
+pair. The skeleton is the test oracle for the memory's hard rules.
+
+When a skeleton needs to deviate, the memory is updated first, with a `P<n>`
+fix reference in the decision log.
+
+### Rule 8 — Acceptance checklist
+
+Before publishing or merging a template, every item must be ticked:
+
+- [ ] `INDEX.md` exists; every key convention is listed in one place
+- [ ] All greppable claims in `00-readme-first.md` pass `tests/verify.sh`
+- [ ] Every memory file's H1 number matches its filename prefix
+- [ ] Filenames are monotonic (no gaps, no collisions)
+- [ ] Every line of `assets/MANIFEST.txt` resolves in the working tree
+- [ ] Skeleton obeys every hard rule in `memory/`
+- [ ] `decision-log.md` has at least one entry per phase (proposed / accepted / deprecated)
+- [ ] At least one worked example + its abstract recipe (see "Teach the recipe")
+- [ ] Reduced-motion path tested manually: toggle OS setting, reload, observe
+- [ ] a11y floor clean (axe-core or equivalent on light + dark variants)
+- [ ] No token table duplicated across files (Rule 1)
+- [ ] If multi-locale: `locales/` exists with at least one non-default script
+
+---
+
+## Teach the recipe, not just the result
+
+A worked example is *one application* of the template. Consumers should learn
+the *recipe* that produced it. Concretely, every worked example ships with:
+
+1. **The result** — a rendered screenshot or live URL.
+2. **The input** — the brand brief, asset list, locale choices that fed it.
+3. **The recipe** — which `memory/NN-*.md` files were consulted, in what
+   order, with what overrides applied.
+
+Recommended placement: a `examples/<name>/RECIPE.md` next to the example.
+Without the recipe, the worked example reads as "look what we made" rather
+than "here is the procedure you can repeat."
+
+Anti-pattern: a worked example so distinct from the template's defaults
+(Maison Lumen's RTL-aware Arabic numerals in LTR mode) that consumers think
+the template *requires* that aesthetic. Pair every strong-style example with
+a neutral-style example (Latin LTR sans-serif) so the template's range is
+visible.
+
+---
+
+## For consumers
+
+If you are an agent **using** a template (e.g., am-coder building from it):
+
+1. Read `INDEX.md` first. It is the only file you must read end-to-end.
+2. For each section you are about to implement, grep the trigger line in
+   `memory/NN-*.md`. Load that file.
+3. After implementing, run `tests/verify.sh` to confirm your changes did not
+   break the skeleton's grep-testable claims.
+
+You should never need to read all memory files. The trigger lines + INDEX
+together give you the minimum read set.
+
+---
+
+## For authors (creating a new template)
+
+A 9-step recipe. Each step names the action, the file or folder it touches,
+and a one-line worked trace from the cinematic-landing exemplar. Do not skip
+steps; the standard is a recipe, not a checklist.
+
+1. **Decide the domain.** Pick one domain — landing, docs, dashboard,
+   CLI. Resist multi-domain templates. *Trace: cinematic-landing is a single
+   domain ("scroll-driven product/brand landing pages"). A second template
+   will be one of the other domains; do NOT bundle them.*
+2. **Pick the smallest worked example.** Rich enough to exercise every
+   convention; small enough to ship in one PR. *Trace: Maison Lumen —
+   Apothecary Light (hand-poured candles) — exercised all 14 memory files
+   and all 8 sections in ~1100 lines of skeleton.*
+3. **`cp -r _blank/ <your-name>/`.** Use the starter at
+   `templates/_blank/`. *Trace: future authors will copy the starter and
+   fill in placeholders; the starter ships every required file plus a
+   placeholder `MANIFEST.txt`.*
+4. **Fill `INDEX.md` first.** The consumer's entry point. *Trace: v0.13.0
+   INDEX.md lists 8 sections, 4 runtime branches, 5 hard rules, 14-token
+   palette, and a11y floor pointers — all in ~150 lines.*
+5. **Add memory files in monotonic order as the example forces them.** Do
+   not pre-write speculative files. Each file earns its number when the
+   worked example proves it is needed. *Trace: 14 memory files in order
+   01–14; 10–14 were post-proposal additions driven by review findings
+   (locale handoff, canvas a11y, mid-session reduced-motion listener,
+   keyboard nav, dark theme), not speculative.*
+6. **Build the skeleton last.** Skeleton obeys; memory asserts. *Trace:
+   v0.13.0 skeleton's 8 `data-section` attrs were added so memory/01's
+   stage-3 section list could be truthful; verify.sh T1 enforces ≥8.*
+7. **Run `bash tests/verify.sh`.** Every grep-testable claim checked.
+   *Trace: v0.13.0 verify.sh ships with 8 tests (T1–T8); every template
+   acceptance claim in Rule 4 has at least one test.*
+8. **Tick the Rule 8 acceptance checklist.** Reviewer is the final tick.
+   *Trace: v0.13.0 closed 9 of 9 fixes from `share/templates/cinematic-landing-fixes.md`
+   before opening the Rule 8 walk-through.*
+9. **Open a PR.** Title `templates(<name>): v0.1.0 initial cut`. *Trace:
+   the cinematic-landing exemplar's version path was 0.12.0 (initial)
+   → 0.12.1 (review fixes) → 0.13.0 (template standard graduated). New
+   templates start at 0.1.0 and climb.*
+
+The first commit is often 60% of the size of the eventual template because
+authors tend to over-document. Cut aggressively; add back only when a real
+consumer fails without it.
+
+---
+
+## For maintainers (evolving an existing template)
+
+1. **Add, never insert.** New memory files append at the end. New tokens
+   extend the palette; they do not replace existing ones unless deprecated
+   in the decision log.
+2. **Update `INDEX.md` and `decision-log.md` in the same commit** as any
+   structural change. These two files are the API.
+3. **If a hard rule changes, the skeleton changes too.** Update the memory
+   first, then the skeleton, then `tests/verify.sh`. Decision-log entry
+   includes a `P<n>` reference.
+4. **Never delete a memory file.** Mark it deprecated in the decision log
+   and zero out its contents, leaving the trigger line as a tombstone.
+   Removing the file breaks any consumer that grepped for it.
+5. **Before bumping a major version (1.x → 2.x)**, run the acceptance
+   checklist against every consumer template you know of.
+
+---
+
+## Companion files
+
+- `share/templates/cinematic-landing-fixes.md` — concrete patches the
+  current exemplar still owes.
+- `agents_manager/research/notes/semantic/template-memory-cp-fence.md` —
+  discriminator between template memory (no frontmatter) and controller
+  memory (frontmatter required).
+- `agents_manager/design/resources/token-schema.md` — W3C Design Tokens
+  subset format; reference for any token-emitting template.
+- `agents_manager/design/resources/multi-locale-checklist.md` — required
+  reading for any template that ships text content.
+
+---
+
+## Versioning
+
+- Patch (1.0.x): typo fixes, verify.sh additions, INDEX clarifications.
+- Minor (1.x): new rules, new sections, new companion files.
+- Major (x.0): renamed rules, retired rules, schema changes.
+
+Bump the version at the top of this file and add an entry to the repo's
+`CHANGELOG.md` referencing the affected templates.

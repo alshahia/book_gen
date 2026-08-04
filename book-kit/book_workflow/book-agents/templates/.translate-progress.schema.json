@@ -1,0 +1,104 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agents-manager.local/schemas/translate-progress.schema.json",
+  "$comment": "template: translate-progress; purpose: Track per-chapter translation progress for resume across failed/incomplete sessions; phase: writing; consumers: [book-writer, master]",
+  "title": "Translation Progress Ledger",
+  "description": "Schema for books/<slug>/.translate-progress.json — append-only resume file.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "chapters"],
+  "properties": {
+    "version": {
+      "description": "Manifest format version.",
+      "const": 1
+    },
+    "chapters": {
+      "description": "Chapter filename (with extension) to progress record.",
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["status", "parts_written", "expected_parts", "last_updated"],
+        "properties": {
+          "status": {
+            "description": "Current state.",
+            "enum": ["pending", "in_progress", "partial", "complete", "failed"]
+          },
+          "parts_written": {
+            "description": "Number of chunked-write parts successfully written so far.",
+            "type": "integer",
+            "minimum": 0
+          },
+          "expected_parts": {
+            "description": "Total parts planned per the chunked-write protocol (1 for files ≤20KB).",
+            "type": "integer",
+            "minimum": 1
+          },
+          "last_byte_offset": {
+            "description": "Byte offset in the target file at which the next resume should continue.",
+            "type": "integer",
+            "minimum": 0
+          },
+          "last_line_number": {
+            "description": "Line number at which the next resume should continue (1-indexed).",
+            "type": "integer",
+            "minimum": 1
+          },
+          "session_id": {
+            "description": "The session that wrote the last successful part. Used to detect session-stuck states.",
+            "type": "string"
+          },
+          "started_at": {
+            "description": "ISO-8601 timestamp when this chapter's first part was written.",
+            "type": "string",
+            "format": "date-time"
+          },
+          "last_updated": {
+            "description": "ISO-8601 timestamp of the most recent part.",
+            "type": "string",
+            "format": "date-time"
+          },
+          "checksum": {
+            "description": "SHA-256 of the partial chapter file at last_updated time.",
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "glossary_gaps": {
+            "description": "Terms reported as missing from the source by this chapter's session.",
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "notes": {
+            "description": "Free-text notes from the writer for the next session.",
+            "type": "string"
+          }
+        }
+      }
+    }
+  },
+  "examples": [
+    {
+      "version": 1,
+      "chapters": {
+        "ch-04-reflection.md": {
+          "status": "partial",
+          "parts_written": 2,
+          "expected_parts": 4,
+          "last_byte_offset": 12453,
+          "last_line_number": 198,
+          "session_id": "ses_2026-08-04_ch04_a1b2",
+          "started_at": "2026-08-04T12:30:00Z",
+          "last_updated": "2026-08-04T12:34:17Z",
+          "checksum": "a1b2c3d4e5f6...",
+          "glossary_gaps": ["reflection chain", "evaluator agent"],
+          "notes": "Stopped mid-H2 'Implementation examples'. Next part starts at line 199."
+        }
+      }
+    }
+  ],
+  "x-open-questions": [
+    "Should expected_parts be derived from source size at dispatch time, or set by the writer on first write?",
+    "Should `glossary_gaps` be auto-merged into glossary.md, or kept as a writer-side todo?",
+    "How long after last_updated should a session be considered 'stuck' (for the monitoring slice)?"
+  ]
+}

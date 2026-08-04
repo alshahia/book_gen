@@ -1,0 +1,965 @@
+#!/usr/bin/env bash
+# agents-manager — unified CLI for the agents-manager controller
+# Single-file dispatcher. v0.10.0+
+# Usage: agents-manager [<subcommand>] [args]
+#   No args = interactive wizard.
+set -euo pipefail
+
+VERSION="v0.10.0"
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+MANIFEST="$SCRIPT_DIR/skills-manifest.json"
+SRC="$(cd "$SCRIPT_DIR/.." && pwd)"  # source checkout (controller files live here)
+
+# When this script runs under Git Bash / MSYS / Cygwin, python3 (a native Windows
+# binary) needs Windows-style paths, not POSIX. Convert once and reuse.
+if command -v cygpath >/dev/null 2>&1; then
+  WIN_MANIFEST=$(cygpath -w "$MANIFEST" 2>/dev/null || echo "$MANIFEST")
+else
+  WIN_MANIFEST="$MANIFEST"
+fi
+
+# ANSI colors — only when stdout is a TTY (or user didn't pass --no-color)
+USE_COLOR=1
+if [[ ! -t 1 ]]; then USE_COLOR=0; fi
+if [[ "${NO_COLOR:-0}" == "1" ]]; then USE_COLOR=0; fi
+
+c() {
+  if [[ "$USE_COLOR" == "1" ]]; then printf "%b" "$1"; else printf ""; fi
+}
+RED=$(c $'\033[31m'); GREEN=$(c $'\033[32m'); YELLOW=$(c $'\033[33m')
+BLUE=$(c $'\033[34m'); BOLD=$(c $'\033[1m'); DIM=$(c $'\033[2m'); RESET=$(c $'\033[0m')
+
+YES="false"  # global --yes flag (consumed before subcommand routing)
+
+err()  { echo "${RED}ERROR:${RESET} $*" >&2; }
+warn() { echo "${YELLOW}WARN:${RESET}  $*" >&2; }
+ok()   { echo "${GREEN}OK${RESET}    $*"; }
+info() { echo "${BLUE}..${RESET}    $*"; }
+dim()  { echo "${DIM}$*${RESET}"; }
+
+require_python3() {
+  if ! command -v python3 >/dev/null 2>&1; then
+    err "python3 required (for JSON parsing). Install Python 3 and retry."
+    exit 1
+  fi
+}
+
+# Read a field from the manifest for one skill, or "" if missing.
+# Usage: manifest_get <skill-id> <field>
+manifest_get() {
+  local id="$1" field="$2"
+  python3 -c "
+import json, sys
+m = json.load(open(r'''$WIN_MANIFEST'''))
+for s in m['skills']:
+    if s['id'] == '$id':
+        v = s.get('$field', '')
+        if v is None: print('')
+        elif isinstance(v, bool): print(str(v))
+        else: print(v)
+        sys.exit(0)
+sys.exit(0)
+"
+}
+
+# List all skills as TSV: id<TAB>level<TAB>required(bool)
+# Usage: manifest_list_filtered [filter-expr]
+manifest_list() {
+  python3 -c "
+import json
+m = json.load(open(r'''$WIN_MANIFEST'''))
+for s in m['skills']:
+    print('\t'.join([s['id'], s.get('level', 'global'), str(bool(s.get('required', False))).lower(), s.get('source', '')]))
+"
+}
+
+# Skill installed path: ~/.agents/skills/<id>/SKILL.md for global, <target>/.agents/skills/<id>/SKILL.md for local
+skill_target_path() {
+  local id="$1" level="$2" project_root="${3:-.}"
+  if [[ "$level" == "global" ]]; then
+    echo "${HOME}/.agents/skills/${id}/SKILL.md"
+  else
+    echo "${project_root}/.agents/skills/${id}/SKILL.md"
+  fi
+}
+
+is_skill_installed() {
+  local id="$1" level="$2" project_root="${3:-.}"
+  local path
+  path="$(skill_target_path "$id" "$level" "$project_root")"
+  [[ -f "$path" ]]
+}
+
+# Install chub (context-hub) globally via npm. Called during `install` (v0.21.0+).
+# Idempotent: skips if already on PATH. Warns and continues on failure; agents
+# fall back to the on-demand install path in agents_manager/SKILL.md.
+# Usage: install_chub [dry-run-flag]
+install_chub() {
+  local dry="${1:-false}"
+  if command -v chub >/dev/null 2>&1; then
+    echo "  OK   chub (already on PATH)"
+    return 0
+  fi
+  if ! command -v npm >/dev/null 2>&1; then
+    warn "npm not on PATH — chub not installed. agents will fall back to on-demand install per master SKILL.md."
+    return 0
+  fi
+  if [[ "$dry" == "true" ]]; then
+    echo "  WOULD run: npm install -g @aisuite/chub (dry run)"
+    return 0
+  fi
+  echo "  ..   npm install -g @aisuite/chub"
+  if npm install -g @aisuite/chub >/dev/null 2>&1; then
+    ok "chub installed"
+  else
+    warn "chub install failed. agents will try on-demand install per master SKILL.md."
+  fi
+}
+
+# Install chub-gate opencode plugin + chub-validate skill (v0.22.0+).
+# Project-local: copies to <target>/.opencode/{plugins,skills}/. Idempotent.
+# With --chub-global: ALSO copies to ~/.config/opencode/{plugins,skills}/.
+# Usage: install_chub_assets <target_abs> <dry-run-flag> <global-flag>
+install_chub_assets() {
+  local target_abs="$1" dry="$2" global="$3"
+  local plugin_src="$SRC/agents_manager/chub-gate/chub-gate.ts"
+  local skill_src="$SRC/agents_manager/chub-validate/SKILL.md"
+
+  if [[ ! -f "$plugin_src" || ! -f "$skill_src" ]]; then
+    warn "chub-gate source not found at $plugin_src or $skill_src — skipping."
+    return 0
+  fi
+
+  # Project-local copy.
+  local plugin_dst="$target_abs/.opencode/plugins/chub-gate.ts"
+  local skill_dst_dir="$target_abs/.opencode/skills/chub-validate"
+  local skill_dst="$skill_dst_dir/SKILL.md"
+  if [[ -f "$plugin_dst" ]]; then
+    echo "  SKIP .opencode/plugins/chub-gate.ts (already exists)"
+  elif [[ "$dry" == "true" ]]; then
+    echo "  COPY .opencode/plugins/chub-gate.ts (dry run)"
+  else
+    mkdir -p "$(dirname "$plugin_dst")"
+    cp "$plugin_src" "$plugin_dst"
+    echo "  OK   .opencode/plugins/chub-gate.ts"
+  fi
+  if [[ -f "$skill_dst" ]]; then
+    echo "  SKIP .opencode/skills/chub-validate/SKILL.md (already exists)"
+  elif [[ "$dry" == "true" ]]; then
+    echo "  COPY .opencode/skills/chub-validate/SKILL.md (dry run)"
+  else
+    mkdir -p "$skill_dst_dir"
+    cp "$skill_src" "$skill_dst"
+    echo "  OK   .opencode/skills/chub-validate/SKILL.md"
+  fi
+
+  # Global copy if requested (for users without agents-manager).
+  if [[ "$global" == "true" ]]; then
+    local g_plugin_dir="$HOME/.config/opencode/plugins"
+    local g_skill_dir="$HOME/.config/opencode/skills/chub-validate"
+    local g_plugin_dst="$g_plugin_dir/chub-gate.ts"
+    local g_skill_dst="$g_skill_dir/SKILL.md"
+    if [[ -f "$g_plugin_dst" ]]; then
+      echo "  SKIP ~/.config/opencode/plugins/chub-gate.ts (already exists)"
+    elif [[ "$dry" == "true" ]]; then
+      echo "  COPY ~/.config/opencode/plugins/chub-gate.ts (dry run)"
+    else
+      mkdir -p "$g_plugin_dir"
+      cp "$plugin_src" "$g_plugin_dst"
+      echo "  OK   ~/.config/opencode/plugins/chub-gate.ts"
+    fi
+    if [[ -f "$g_skill_dst" ]]; then
+      echo "  SKIP ~/.config/opencode/skills/chub-validate/SKILL.md (already exists)"
+    elif [[ "$dry" == "true" ]]; then
+      echo "  COPY ~/.config/opencode/skills/chub-validate/SKILL.md (dry run)"
+    else
+      mkdir -p "$g_skill_dir"
+      cp "$skill_src" "$g_skill_dst"
+      echo "  OK   ~/.config/opencode/skills/chub-validate/SKILL.md"
+    fi
+  fi
+}
+
+# ───────────────────────────── install ─────────────────────────────
+cmd_install() {
+  local TARGET="." DRY_RUN="false" GIT_MODE="auto" SCOPE="" CHUB_GLOBAL="false"
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --dry-run) DRY_RUN="true"; shift ;;
+      --git) GIT_MODE="$2"; shift 2 ;;
+      --git=*) GIT_MODE="${1#--git=}"; shift ;;
+      --skills|--scope) SCOPE="$2"; shift 2 ;;
+      --skills=*) SCOPE="${1#--skills=}"; shift ;;
+      --scope=*) SCOPE="${1#--scope=}"; shift ;;
+      --chub-global) CHUB_GLOBAL="true"; shift ;;
+      --chub-global=*) CHUB_GLOBAL="${1#--chub-global=}"; shift ;;
+      --yes|-y) shift ;;
+      -*) err "unknown flag: $1"; return 1 ;;
+      *) TARGET="$1"; shift ;;
+    esac
+  done
+
+  case "$GIT_MODE" in auto|prompt|skip) ;; *) err "--git must be auto|prompt|skip (got '$GIT_MODE')"; return 1 ;; esac
+  case "$SCOPE" in both|global|local|skip|"") ;; *) err "--skills must be both|global|local|skip (got '$SCOPE')"; return 1 ;; esac
+
+  if [[ ! -d "$TARGET" ]]; then err "target directory '$TARGET' does not exist."; return 1; fi
+  local TARGET_ABS; TARGET_ABS="$(cd "$TARGET" && pwd)"
+
+  if [[ ! -f "$SRC/opencode.jsonc" ]]; then err "$SRC does not look like an agents-manager checkout"; return 1; fi
+
+  echo "${BOLD}agents-manager installer $VERSION${RESET}"
+  echo "  Source: $SRC"
+  echo "  Target: $TARGET_ABS"
+  [[ "$DRY_RUN" == "true" ]] && echo "  Mode:   DRY RUN (no changes will be written)"
+  echo
+
+  copy_safe() {
+    local rel="$1"
+    local dest="$TARGET_ABS/$rel"
+    if [[ -e "$dest" ]]; then
+      echo "  SKIP $rel (already exists)"
+    elif [[ "$DRY_RUN" == "true" ]]; then
+      echo "  COPY $rel (dry run)"
+    else
+      if [[ -d "$SRC/$rel" ]]; then
+        cp -R "$SRC/$rel" "$dest"
+      else
+        cp "$SRC/$rel" "$dest"
+      fi
+      echo "  OK   $rel"
+    fi
+  }
+
+  echo "${BOLD}Files:${RESET}"
+  copy_safe "opencode.jsonc"
+  copy_safe "CLAUDE.md"
+
+  echo
+  echo "${BOLD}Directories:${RESET}"
+  copy_safe "agents_manager"
+  copy_safe "share"
+  copy_safe "tasks"
+  if [[ "$DRY_RUN" == "true" ]]; then
+    echo "  MKDIR .agents/skills (dry run)"
+  else
+    mkdir -p "$TARGET_ABS/.agents/skills"
+  fi
+  copy_safe ".agents/skills/mavis-team"
+
+  # Skills: chain to cmd_skills add unless --skills skip.
+  if [[ -n "$SCOPE" && "$SCOPE" != "skip" ]]; then
+    cmd_skills add --all "--$SCOPE"
+  fi
+
+  # chub (v0.21.0+): install by default so downstream agents don't skip on miss.
+  echo
+  echo "${BOLD}chub (context-hub):${RESET}"
+  install_chub "$DRY_RUN"
+
+  # chub-gate plugin + chub-validate skill (v0.22.0+). Project-local by default;
+  # --chub-global also copies to ~/.config/opencode/.
+  echo
+  echo "${BOLD}chub-gate (plugin + skill):${RESET}"
+  install_chub_assets "$TARGET_ABS" "$DRY_RUN" "$CHUB_GLOBAL"
+
+  # gitignore
+  echo
+  echo "${BOLD}Gitignore:${RESET}"
+  local marker="# agents-manager $VERSION"
+  local gi="$TARGET_ABS/.gitignore"
+  if [[ ! -f "$gi" ]]; then
+    if [[ "$DRY_RUN" == "true" ]]; then
+      echo "  CREATE .gitignore (dry run)"
+    else
+      {
+        echo "$marker"
+        echo "# agents-manager runtime artifacts"
+        echo "share/notes/02_secrets_*.md"
+        echo "share/screenshots/"
+        echo "share/notes/99_progress_*.md"
+      } > "$gi"
+      echo "  OK   .gitignore (created)"
+    fi
+  elif ! grep -qF "$marker" "$gi"; then
+    if [[ "$DRY_RUN" == "true" ]]; then
+      echo "  APPEND .gitignore (dry run)"
+    else
+      {
+        echo
+        echo "$marker"
+        echo "share/notes/02_secrets_*.md"
+        echo "share/screenshots/"
+        echo "share/notes/99_progress_*.md"
+      } >> "$gi"
+      echo "  OK   .gitignore (appended)"
+    fi
+  else
+    echo "  SKIP .gitignore (already has agents-manager entries)"
+  fi
+
+  # git init
+  echo
+  echo "${BOLD}Git:${RESET}"
+  if [[ -d "$TARGET_ABS/.git" ]]; then
+    echo "  SKIP .git (already initialized)"
+  elif [[ "$GIT_MODE" == "skip" ]]; then
+    echo "  SKIP git init (--git skip)"
+  elif ! command -v git >/dev/null 2>&1; then
+    warn "git CLI not on PATH — skipping git init (install continues)."
+  elif [[ "$GIT_MODE" == "prompt" && "$YES" != "true" && "$DRY_RUN" != "true" ]]; then
+    local ans
+    read -r -p "  Initialize git in $TARGET_ABS? [Y/n] " ans
+    ans="${ans:-Y}"
+    if [[ ! "$ans" =~ ^[Yy] ]]; then
+      echo "  SKIP git init (declined)"
+    else
+      (cd "$TARGET_ABS" && git init -q -b main 2>/dev/null) || (cd "$TARGET_ABS" && git init -q)
+      (cd "$TARGET_ABS" && git add -A) 2>/dev/null
+      if (cd "$TARGET_ABS" && git diff --cached --quiet); then
+        echo "  OK   .git (initialized, nothing to commit)"
+      else
+        (cd "$TARGET_ABS" && git -c user.email=agents-manager@local -c user.name=agents-manager commit -q -m "Initial commit") 2>/dev/null
+        echo "  OK   .git (initialized + initial commit)"
+      fi
+    fi
+  elif [[ "$DRY_RUN" == "true" ]]; then
+    echo "  GIT init + add + commit (dry run)"
+  else
+    (cd "$TARGET_ABS" && git init -q -b main 2>/dev/null) || (cd "$TARGET_ABS" && git init -q)
+    (cd "$TARGET_ABS" && git add -A) 2>/dev/null
+    if (cd "$TARGET_ABS" && git diff --cached --quiet); then
+      echo "  OK   .git (initialized, nothing to commit)"
+    else
+      (cd "$TARGET_ABS" && git -c user.email=agents-manager@local -c user.name=agents-manager commit -q -m "Initial commit") 2>/dev/null
+      echo "  OK   .git (initialized + initial commit)"
+    fi
+  fi
+
+  # chmod +x on shell scripts
+  echo
+  echo "${BOLD}Permissions:${RESET}"
+  if [[ "$DRY_RUN" == "true" ]]; then
+    local n
+    n=$(find "$SRC/bin" -maxdepth 1 -type f -name '*.sh' 2>/dev/null | wc -l | tr -d ' ')
+    echo "  CHMOD +x bin/*.sh (dry run — would set executable bit on $n files)"
+  else
+    local n=0
+    while IFS= read -r -d '' f; do chmod +x "$f"; n=$((n+1)); done < <(find "$SRC/bin" -maxdepth 1 -type f -name '*.sh' -print0 2>/dev/null)
+    echo "  CHMOD +x bin/*.sh ($n files)"
+  fi
+
+  [[ "$DRY_RUN" == "true" ]] && { echo; echo "DRY RUN complete — no changes were written."; return 0; }
+
+  echo
+  ok "Done."
+  echo
+  echo "${BOLD}NEXT STEPS:${RESET}"
+  echo "  1. cd $TARGET_ABS"
+  echo "  2. Run:  agents-manager check .                 # verify the install"
+  echo "  3. Run:  agents-manager skills add --all --yes  # install missing required skills"
+  echo "  4. Run:  agents-manager doctor .                # diagnose any other issues"
+  echo "  5. Open in OpenCode — the master agent is auto-routed"
+  echo
+}
+
+# ───────────────────────────── check ──────────────────────────────
+cmd_check() {
+  local TARGET="${1:-.}"
+  [[ -d "$TARGET" ]] || { err "target '$TARGET' does not exist"; return 1; }
+  local T; T="$(cd "$TARGET" && pwd)"
+
+  echo "${BOLD}agents-manager check $VERSION${RESET}"
+  echo "  Target: $T"
+  echo
+
+  echo "${BOLD}Controller files in $T:${RESET}"
+  for p in "opencode.jsonc" "CLAUDE.md" "agents_manager" "share" "tasks" ".agents/skills/mavis-team"; do
+    if [[ -e "$T/$p" ]]; then echo "  OK    $p"; else echo "  MISS  $p"; fi
+  done
+  echo
+
+  echo "${BOLD}Required skills:${RESET}"
+  require_python3
+  local total=0 missing=0 installed=0
+  while IFS=$'\t' read -r id level req source; do
+    total=$((total+1))
+    if is_skill_installed "$id" "$level" "$T"; then
+      echo "  OK    $id ($level)"; installed=$((installed+1))
+    else
+      echo "  MISS  $id ($level) — $(manifest_get "$id" install_cmd)"
+      missing=$((missing+1))
+    fi
+  done < <(manifest_list)
+
+  echo
+  echo "${BOLD}PowerShell: ${RESET}skipping (bash-only check)"
+  echo
+  echo "Result: PASS=$installed  FAIL=$missing  TOTAL=$total"
+  [[ $missing -eq 0 ]] && return 0 || return 1
+}
+
+# ───────────────────────────── doctor ─────────────────────────────
+cmd_doctor() {
+  local TARGET="${1:-.}"
+  local FIX="false"
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --fix) FIX="true"; shift ;;
+      --) shift; ;;
+      -*) shift ;;
+      *) TARGET="$1"; shift ;;
+    esac
+  done
+  [[ -d "$TARGET" ]] || { err "target '$TARGET' does not exist"; return 1; }
+  local T; T="$(cd "$TARGET" && pwd)"
+
+  echo "${BOLD}agents-manager doctor $VERSION${RESET}"
+  echo "  Target: $T"
+  echo
+  local pass=0 warn_n=0 fail=0
+
+  print_result() {
+    case "$1" in
+      pass) echo "  ${GREEN}PASS${RESET}  $2"; pass=$((pass+1)) ;;
+      warn) echo "  ${YELLOW}WARN${RESET}  $2"; warn_n=$((warn_n+1)) ;;
+      fail) echo "  ${RED}FAIL${RESET}  $2"; fail=$((fail+1)) ;;
+    esac
+  }
+
+  # Controller files
+  echo "${BOLD}Controller files:${RESET}"
+  local ctl_missing=()
+  for p in "opencode.jsonc" "CLAUDE.md" "agents_manager" "share" "tasks"; do
+    if [[ -e "$T/$p" ]]; then print_result pass "$p"; else print_result fail "missing $p"; ctl_missing+=("$p"); fi
+  done
+
+  # Required skills
+  echo
+  echo "${BOLD}Required skills (manifest):${RESET}"
+  local skill_miss=()
+  require_python3
+  while IFS=$'\t' read -r id level req source; do
+    if [[ "$req" != "true" ]]; then continue; fi
+    if is_skill_installed "$id" "$level" "$T"; then
+      print_result pass "$id ($level)"
+    else
+      print_result fail "missing $id ($level)"
+      skill_miss+=("$id")
+    fi
+  done < <(manifest_list)
+
+  # git CLI
+  echo
+  echo "${BOLD}Tooling:${RESET}"
+  if command -v git >/dev/null 2>&1; then
+    local gv; gv=$(git --version 2>/dev/null | head -1)
+    print_result pass "git CLI on PATH ($gv)"
+  else
+    print_result fail "git CLI not on PATH (--git auto will skip)"
+  fi
+  if command -v python3 >/dev/null 2>&1; then
+    print_result pass "python3 on PATH (for JSON parsing)"
+  else
+    print_result warn "python3 not on PATH (required by this CLI)"
+  fi
+  if command -v opencode >/dev/null 2>&1; then
+    print_result pass "opencode CLI on PATH"
+  else
+    print_result warn "opencode CLI not on PATH (install separately to use this controller)"
+  fi
+  if command -v npx >/dev/null 2>&1; then
+    print_result pass "npx on PATH (needed for 'skills add' to work)"
+  else
+    print_result warn "npx not on PATH (Node.js + npm required for global skills)"
+  fi
+
+  # bash version
+  if [[ "${BASH_VERSINFO[0]}" -ge 4 ]]; then
+    print_result pass "bash ${BASH_VERSION} (>= 4)"
+  else
+    print_result warn "bash ${BASH_VERSION} (< 4 — some dispatcher features use bash 4+ syntax)"
+  fi
+
+  # git repo state of target
+  echo
+  echo "${BOLD}Target git state:${RESET}"
+  if [[ -d "$T/.git" ]]; then
+    print_result pass "target is a git repo"
+  else
+    print_result warn "target is not a git repo (use --git auto or run git init)"
+  fi
+
+  # Suggestions
+  echo
+  if [[ ${#skill_miss[@]} -gt 0 ]]; then
+    echo "${BOLD}Suggested fixes:${RESET}"
+    echo "  Run:  agents-manager skills add --all --yes"
+    echo "  Or:   agents-manager skills add ${skill_miss[0]} --yes"
+  fi
+  if [[ ${#ctl_missing[@]} -gt 0 ]]; then
+    echo "  Controller files missing — run:  agents-manager install . --git auto --yes"
+  fi
+  if command -v git >/dev/null 2>&1 && [[ ! -d "$T/.git" ]]; then
+    echo "  Initialize git:  cd $T && git init -b main"
+  fi
+
+  echo
+  echo "Doctor: PASS=$pass WARN=$warn_n FAIL=$fail"
+
+  if [[ "$FIX" == "true" && $fail -gt 0 ]]; then
+    echo
+    echo "${BOLD}--fix mode:${RESET}"
+    if [[ ${#skill_miss[@]} -gt 0 ]]; then
+      YES="true" cmd_skills add --all
+    fi
+    if [[ ${#ctl_missing[@]} -gt 0 ]]; then
+      YES="true" cmd_install "$T" --git auto
+    fi
+  fi
+
+  [[ $fail -eq 0 ]] && return 0 || return 1
+}
+
+# ───────────────────────────── uninstall ─────────────────────────────
+cmd_uninstall() {
+  local TARGET="." YES_LOCAL="false"
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --yes|-y) YES_LOCAL="true"; shift ;;
+      -*) shift ;;
+      *) TARGET="$1"; shift ;;
+    esac
+  done
+  [[ -d "$TARGET" ]] || { err "target '$TARGET' does not exist"; return 1; }
+  local T; T="$(cd "$TARGET" && pwd)"
+
+  echo "${BOLD}Uninstall from $T${RESET}"
+  local paths=("opencode.jsonc" "CLAUDE.md" "agents_manager" "share" "tasks" ".agents/skills/mavis-team")
+  for p in "${paths[@]}"; do
+    if [[ -e "$T/$p" ]]; then echo "  will remove: $p"; fi
+  done
+
+  if [[ "$YES_LOCAL" != "true" && "$YES" != "true" ]]; then
+    local ans
+    read -r -p "  Proceed? Type 'yes' to confirm: " ans
+    [[ "$ans" == "yes" ]] || { echo "Aborted."; return 3; }
+  fi
+
+  for p in "${paths[@]}"; do
+    if [[ -e "$T/$p" ]]; then
+      rm -rf -- "${T:?}/$p"
+      echo "  REMOVED $p"
+    fi
+  done
+  echo
+  ok "Uninstall complete."
+}
+
+# ───────────────────────────── skills ─────────────────────────────
+cmd_skills() {
+  local action="${1:-list}"; shift
+  case "$action" in
+    list)   cmd_skills_list "$@" ;;
+    add)    cmd_skills_add "$@" ;;
+    remove) cmd_skills_remove "$@" ;;
+    which)  cmd_skills_which "$@" ;;
+    update) cmd_skills_update "$@" ;;
+    *) err "unknown skills subcommand: $action"; return 1 ;;
+  esac
+}
+
+cmd_skills_list() {
+  local filter="all"
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --required-only) filter="required"; shift ;;
+      --installed-only) filter="installed"; shift ;;
+      --missing-only) filter="missing"; shift ;;
+      --) shift; ;;
+      *) shift ;;
+    esac
+  done
+  local TARGET="."
+  require_python3
+  echo "${BOLD}Required skills (manifest: $MANIFEST)${RESET}"
+  echo
+  printf "  %-30s  %-7s  %-25s  %s\n" "SKILL" "LEVEL" "STATUS" "SOURCE"
+  echo "  ------------------------------  -------  -------------------------  -------------------------"
+  while IFS=$'\t' read -r id level req source; do
+    local status
+    if is_skill_installed "$id" "$level" "$TARGET"; then status="installed"; else status="missing"; fi
+    case "$filter" in
+      required) [[ "$req" == "true" ]] || continue ;;
+      installed) [[ "$status" == "installed" ]] || continue ;;
+      missing)   [[ "$status" == "missing" ]] || continue ;;
+    esac
+    local color="$RED"
+    [[ "$status" == "installed" ]] && color="$GREEN"
+    printf "  %-30s  %-7s  ${color}%-25s${RESET}  %s\n" "$id" "$level" "$status" "$source"
+  done < <(manifest_list)
+  echo
+  echo "Tip:  agents-manager skills add <name>...|--all [--global|--local] [--yes]"
+}
+
+cmd_skills_which() {
+  local id="${1:?usage: skills which <name>}"
+  require_python3
+  local level; level=$(manifest_get "$id" "level")
+  if [[ -z "$level" ]]; then err "unknown skill: $id"; return 1; fi
+  local path; path=$(skill_target_path "$id" "$level" ".")
+  if [[ -f "$path" ]]; then
+    echo "${GREEN}installed${RESET}  $id ($level)"
+    echo "         $path"
+  else
+    echo "${RED}missing${RESET}    $id ($level)"
+    echo "         expected at: $path"
+    local ic; ic=$(manifest_get "$id" "install_cmd")
+    [[ -n "$ic" ]] && echo "         install: $ic"
+    return 1
+  fi
+}
+
+cmd_skills_add() {
+  local TARGET="${PWD}" NAMES=() SCOPE="" ALL="false"
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --all) ALL="true"; shift ;;
+      --global) SCOPE="global"; shift ;;
+      --local) SCOPE="local"; shift ;;
+      --both|--skip) shift ;;  # accepted but no-op; per-skill level decides
+      --yes|-y) shift ;;
+      --) shift; ;;
+      -*) err "unknown flag: $1"; return 1 ;;
+      *) NAMES+=("$1"); shift ;;
+    esac
+  done
+  require_python3
+
+  if [[ "$ALL" == "true" ]]; then
+    while IFS=$'\t' read -r id level req source; do
+      [[ "$req" == "true" ]] || continue
+      is_skill_installed "$id" "$level" "$TARGET" && continue
+      NAMES+=("$id")
+    done < <(manifest_list)
+  fi
+
+  if [[ ${#NAMES[@]} -eq 0 ]]; then
+    dim "Nothing to do (no missing skills or no names given)."
+    return 0
+  fi
+
+  local ok_count=0 fail_count=0
+  for id in "${NAMES[@]}"; do
+    local level; level=$(manifest_get "$id" "level")
+    local source; source=$(manifest_get "$id" "source")
+    local ic; ic=$(manifest_get "$id" "install_cmd")
+
+    # Override scope via --global/--local
+    if [[ -n "$SCOPE" ]]; then level="$SCOPE"; fi
+
+    echo
+    echo "${BOLD}-> $id${RESET} (level=$level source=$source)"
+
+    if [[ "$level" == "local" ]]; then
+      # local skills come with the controller; nothing to do at add time
+      if is_skill_installed "$id" "$level" "$TARGET"; then
+        ok "   already installed at $(skill_target_path "$id" "$level" "$TARGET")"
+        ok_count=$((ok_count+1))
+      else
+        warn "   controller-local skill '$id' is not in this project's .agents/skills/."
+        warn "   It should ship with the controller. Run: agents-manager install . --yes"
+        fail_count=$((fail_count+1))
+      fi
+      continue
+    fi
+
+    # global → run npx install_cmd
+    if [[ -z "$ic" ]]; then
+      warn "   no install_cmd defined in manifest for '$id'"
+      fail_count=$((fail_count+1))
+      continue
+    fi
+
+    # Confirm if interactive
+    if [[ "$YES" != "true" ]] && [[ "$ALL" != "true" ]]; then
+      local ans
+      read -r -p "   Run: $ic  [Y/n] " ans
+      ans="${ans:-Y}"
+      [[ "$ans" =~ ^[Yy] ]] || { dim "   skipped"; continue; }
+    fi
+
+    info "   running: $ic"
+    if bash -c "$ic"; then
+      ok "   installed"
+      ok_count=$((ok_count+1))
+    else
+      err "   install failed (exit $?)"
+      fail_count=$((fail_count+1))
+    fi
+  done
+
+  echo
+  echo "Skills: ok=$ok_count fail=$fail_count"
+  [[ $fail_count -eq 0 ]] && return 0 || return 1
+}
+
+cmd_skills_remove() {
+  local NAME="${1:?usage: skills remove <name>}"
+  require_python3
+  local level; level=$(manifest_get "$NAME" "level")
+  if [[ "$level" != "global" ]]; then
+    err "skills remove only supports global skills (level=$level)"; return 1
+  fi
+  # Use the reverse of the install_cmd — strip the leading "npx --yes skills add" + final -y
+  # and use the corresponding "skills remove" pattern.
+  local cmd="npx --yes skills remove https://github.com/obra/superpowers --skill $NAME -g -y"
+  echo "  $cmd"
+  if bash -c "$cmd"; then ok "removed $NAME"; else err "remove failed"; return 1; fi
+}
+
+cmd_skills_update() {
+  local NAMES=() ALL="false"
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --all) ALL="true"; shift ;;
+      --yes|-y) shift ;;
+      --) shift; ;;
+      -*) err "unknown flag: $1"; return 1 ;;
+      *) NAMES+=("$1"); shift ;;
+    esac
+  done
+  require_python3
+  if [[ "$ALL" == "true" ]]; then
+    while IFS=$'\t' read -r id level req source; do
+      [[ "$level" == "global" ]] || continue
+      NAMES+=("$id")
+    done < <(manifest_list)
+  fi
+  if [[ ${#NAMES[@]} -eq 0 ]]; then dim "Nothing to update."; return 0; fi
+  for id in "${NAMES[@]}"; do
+    local uc; uc=$(manifest_get "$id" "update_cmd")
+    if [[ -z "$uc" ]]; then dim "  $id: no update_cmd in manifest"; continue; fi
+    info "  $id: $uc"
+    bash -c "$uc" || warn "  $id: update failed"
+  done
+}
+
+# ───────────────────────────── update ─────────────────────────────
+cmd_update() {
+  # Defers to the legacy update.sh if present (keeps backward compat with the
+  # v0.8 update flow until we port its logic in v0.10.1+).
+  local UPD="$SCRIPT_DIR/update.sh"
+  if [[ -x "$UPD" ]]; then
+    info "Delegating to $UPD (v0.8 update logic)…"
+    "$UPD" "$@"
+    return $?
+  fi
+  err "update.sh not found at $UPD"
+  return 1
+}
+
+# ───────────────────────────── release ─────────────────────────────
+cmd_release() {
+  local sub="${1:-zip}"; shift
+  case "$sub" in
+    zip) exec "$SCRIPT_DIR/release-zip.sh" "$@" ;;
+    all) exec "$SCRIPT_DIR/release-zip-all.sh" "$@" ;;
+    *) err "release subcommand: zip|all"; return 1 ;;
+  esac
+}
+
+# ───────────────────────────── lint ─────────────────────────────
+cmd_lint() {
+  exec "$SCRIPT_DIR/lint-design.sh" "$@"
+}
+
+# ───────────────────────────── version ─────────────────────────────
+cmd_version() {
+  echo "agents-manager $VERSION"
+  echo "  manifest: $MANIFEST"
+  if [[ -f "$MANIFEST" ]]; then
+    # Cheap count without python: grep '"id":' lines.
+    local n
+    n=$(grep -c '"id":' "$MANIFEST" 2>/dev/null || echo "?")
+    echo "  manifest skills: $n entries"
+  fi
+}
+
+# ───────────────────────────── help / wizard ─────────────────────────────
+cmd_help() {
+  local topic="${1:-}"
+  if [[ -z "$topic" ]]; then
+    cat <<EOF
+${BOLD}agents-manager${RESET} $VERSION — unified CLI for the agents-manager controller
+
+${BOLD}Usage${RESET}
+  agents-manager                                       Interactive wizard
+  agents-manager <subcommand> [options...]
+
+${BOLD}Subcommands${RESET}
+  install       Install the controller in a target directory
+  update        Update an existing install to a newer version (delegates to update.sh)
+  check         Verify the controller files + required skills
+  doctor        Diagnose common issues (--fix to auto-remediate)
+  uninstall     Remove the controller from a target directory
+  skills        Manage required skills — list / add / remove / which / update
+  release       Build release ZIP(s) (subcommand: zip|all)
+  lint          Run advisory design linter on HTML mockups
+  version       Print version + manifest info
+  help          Show this help (or detailed help for a subcommand)
+
+${BOLD}Global flags${RESET}
+  --yes, -y    Skip all interactive prompts (use defaults)
+  --no-color   Disable colored output
+
+${BOLD}Examples${RESET}
+  agents-manager install . --git auto --yes
+  agents-manager doctor . --fix
+  agents-manager skills list --missing-only
+  agents-manager skills add --all --yes
+  agents-manager update --check
+  agents-manager help install
+EOF
+  else
+    case "$topic" in
+      install)
+        cat <<EOF
+${BOLD}agents-manager install${RESET} — Install the controller in a target directory
+
+Usage:
+  agents-manager install [TARGET] [--git M] [--yes] [--dry-run]
+
+Arguments:
+  TARGET                 Path to install into. Default: current directory.
+
+Flags:
+  --git <auto|prompt|skip>   Git init mode. Default: auto.
+                             auto:   init git + commit if missing (zero-knowledge)
+                             prompt: ask first
+                             skip:   don't touch git
+  --yes, -y                  Skip prompts (assume 'yes' for all).
+  --dry-run                  Print what would change without writing anything.
+
+Example:
+  agents-manager install . --git auto --yes
+EOF
+        ;;
+      doctor)
+        cat <<EOF
+${BOLD}agents-manager doctor${RESET} — Diagnose common issues
+
+Usage:
+  agents-manager doctor [TARGET] [--fix]
+
+Example:
+  agents-manager doctor . --fix
+EOF
+        ;;
+      skills)
+        cat <<EOF
+${BOLD}agents-manager skills${RESET} — Manage required skills
+
+Subcommands:
+  list [flags]         List skills (--required-only|--installed-only|--missing-only)
+  add <name|--all>     Install skills (--global|--local, --yes)
+  remove <name>        Remove a global skill (must be obra/superpowers-based)
+  which <name>         Show where a skill is (or should be) installed
+  update <name|--all>  Update one or all global skills (--yes)
+
+Example:
+  agents-manager skills add verification-before-completion --yes
+EOF
+        ;;
+      *) err "no detailed help for '$topic'"; return 1 ;;
+    esac
+  fi
+}
+
+wizard() {
+  if [[ "$YES" == "true" ]]; then
+    cmd_help
+    return 0
+  fi
+  if [[ ! -t 0 ]]; then
+    # Non-interactive stdin — just show help
+    cmd_help
+    return 0
+  fi
+  echo "${BOLD}agents-manager $VERSION${RESET} — interactive setup"
+  echo
+  echo "What would you like to do?"
+  PS3="  Enter number [1-7] or 'q' to quit: "
+  select _ in \
+    "Install the controller in a project" \
+    "Update an existing install" \
+    "Check / verify an install" \
+    "Run doctor (diagnose issues)" \
+    "Manage skills (list/add/remove)" \
+    "Uninstall the controller" \
+    "Show full help"
+  do
+    case "$REPLY" in
+      q|Q) echo "Bye."; return 0 ;;
+      1)
+        read -r -p "  Target directory [.] : " target; target="${target:-.}"; YES="true" cmd_install "$target"; return $? ;;
+      2)
+        YES="true" cmd_update --check; return $? ;;
+      3)
+        read -r -p "  Target directory [.] : " target; target="${target:-.}"; cmd_check "$target"; return $? ;;
+      4)
+        read -r -p "  Target directory [.] : " target; target="${target:-.}"; cmd_doctor "$target"; return $? ;;
+      5)
+        cmd_skills list
+        echo
+        read -r -p "  Install missing required skills? [Y/n] " ans; ans="${ans:-Y}"
+        if [[ "$ans" =~ ^[Yy] ]]; then YES="true" cmd_skills add --all; return $?; fi
+        return 0 ;;
+      6)
+        read -r -p "  Target directory [.] : " target; target="${target:-.}"; YES="true" cmd_uninstall "$target"; return $? ;;
+      7)
+        cmd_help; return 0 ;;
+      *) echo "  Invalid choice. Pick 1-7 or 'q'." ;;
+    esac
+  done
+}
+
+# ───────────────────────────── dispatcher ─────────────────────────────
+# Pull out global flags (--yes, --no-color) before subcommand routing.
+ARGS=()
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --yes|-y) YES="true"; shift ;;
+    --no-color) NO_COLOR="1"; shift ;;
+    --) shift; while [[ $# -gt 0 ]]; do ARGS+=("$1"); shift; done ;;
+    *)  ARGS+=("$1"); shift ;;
+  esac
+done
+set -- "${ARGS[@]}"
+
+# Reset color env in case --no-color was passed
+if [[ "${NO_COLOR:-0}" == "1" && "$USE_COLOR" == "1" ]]; then
+  RED=''; GREEN=''; YELLOW=''; BLUE=''; BOLD=''; DIM=''; RESET=''
+fi
+
+SUBCOMMAND="${1:-wizard}"
+if [[ $# -gt 0 ]]; then shift; fi
+
+case "$SUBCOMMAND" in
+  install)    cmd_install "$@" ;;
+  update)     cmd_update "$@" ;;
+  check)      cmd_check "$@" ;;
+  doctor)     cmd_doctor "$@" ;;
+  uninstall)  cmd_uninstall "$@" ;;
+  skills)     cmd_skills "$@" ;;
+  release)    cmd_release "$@" ;;
+  lint)       cmd_lint "$@" ;;
+  version|-V|--version) cmd_version ;;
+  help|-h|--help) cmd_help "${1:-}" ;;
+  wizard|"")  wizard ;;
+  *)
+    err "unknown subcommand: $SUBCOMMAND"
+    dim "Run 'agents-manager help' for usage."
+    exit 1
+    ;;
+esac

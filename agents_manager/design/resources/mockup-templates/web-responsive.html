@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<title>Web Responsive Mockup Template — am-design</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+:root {
+  --bg: #FAFAFA;
+  --surface: #FFFFFF;
+  --ink: #1A1A1A;
+  --ink-2: #4A4A4A;
+  --ink-3: #8A8A8A;
+  --line: #E8E8E8;
+  --primary: #3B5BFF;
+  --primary-tint: #EAEEFF;
+  --r-sm: 8px; --r-md: 14px; --r-lg: 22px;
+  --font-sans: -apple-system, "SF Pro Text", "Inter", system-ui, sans-serif;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #ECEFF3; font-family: var(--font-sans); color: var(--ink); padding: 32px; }
+.canvas { display: grid; grid-template-columns: repeat(3, minmax(360px, 1fr)); gap: 24px; max-width: 1800px; margin: 0 auto; }
+.viewport { background: var(--bg); border-radius: 12px; box-shadow: 0 12px 40px -12px rgba(0,0,0,0.18); overflow: hidden; position: relative; }
+.label { background: #1A1A1A; color: #fff; padding: 8px 14px; font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; display: flex; justify-content: space-between; }
+.mobile-frame { width: 100%; aspect-ratio: 390/844; }
+.tablet-frame { width: 100%; aspect-ratio: 1024/768; }
+.desktop-frame { width: 100%; aspect-ratio: 1440/900; }
+.header { padding: 14px 20px; background: var(--surface); border-bottom: 1px solid var(--line); display: flex; align-items: center; justify-content: space-between; }
+.logo { width: 28px; height: 28px; border-radius: 6px; background: var(--primary); }
+.menu-btn { width: 28px; height: 28px; display: flex; flex-direction: column; gap: 4px; justify-content: center; align-items: center; }
+.menu-btn span { width: 16px; height: 2px; background: var(--ink); border-radius: 1px; }
+.hero { padding: 40px 20px; text-align: center; }
+.hero h1 { font-size: 28px; font-weight: 700; letter-spacing: -0.02em; }
+.hero p { color: var(--ink-2); margin-top: 8px; font-size: 14px; }
+.btn { display: inline-block; background: var(--primary); color: #fff; padding: 12px 22px; border-radius: var(--r-md); font-weight: 600; font-size: 14px; text-decoration: none; margin-top: 16px; }
+.cards { display: grid; gap: 12px; padding: 16px 20px; }
+.cards.cols-1 { grid-template-columns: 1fr; }
+.cards.cols-2 { grid-template-columns: repeat(2, 1fr); }
+.cards.cols-3 { grid-template-columns: repeat(3, 1fr); }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-md); padding: 14px; }
+.card h3 { font-size: 14px; font-weight: 600; }
+.card p { font-size: 12px; color: var(--ink-3); margin-top: 4px; }
+.note { background: #FFF7CC; padding: 1px 6px; border-radius: 4px; font-family: ui-monospace, monospace; font-size: 11px; }
+</style>
+</head>
+<body>
+<div class="canvas">
+  <div class="viewport">
+    <div class="label"><span>Mobile · 390px</span><span>1 col</span></div>
+    <div class="mobile-frame">
+      <div class="header">
+        <div class="logo"></div>
+        <div class="menu-btn"><span></span><span></span><span></span></div>
+      </div>
+      <div class="hero">
+        <h1>Title</h1>
+        <p>One-column stacked layout.</p>
+        <a href="#" class="btn">Get started</a>
+      </div>
+      <div class="cards cols-1">
+        <div class="card"><h3>Card A</h3><p>Description</p></div>
+        <div class="card"><h3>Card B</h3><p>Description</p></div>
+        <div class="card"><h3>Card C</h3><p>Description</p></div>
+      </div>
+    </div>
+  </div>
+  <div class="viewport">
+    <div class="label"><span>Tablet · 768px</span><span>2 cols</span></div>
+    <div class="tablet-frame">
+      <div class="header">
+        <div class="logo"></div>
+        <div style="display: flex; gap: 18px; font-size: 14px; color: var(--ink-2);">
+          <span>Products</span><span>Pricing</span><span>About</span>
+        </div>
+        <a href="#" class="btn" style="margin: 0; padding: 6px 14px; font-size: 13px;">Sign in</a>
+      </div>
+      <div class="hero">
+        <h1 style="font-size: 36px;">Title</h1>
+        <p>Two-column grid for medium screens.</p>
+        <a href="#" class="btn">Get started</a>
+      </div>
+      <div class="cards cols-2">
+        <div class="card"><h3>Card A</h3><p>Description</p></div>
+        <div class="card"><h3>Card B</h3><p>Description</p></div>
+        <div class="card"><h3>Card C</h3><p>Description</p></div>
+        <div class="card"><h3>Card D</h3><p>Description</p></div>
+      </div>
+    </div>
+  </div>
+  <div class="viewport">
+    <div class="label"><span>Desktop · 1440px</span><span>3 cols</span></div>
+    <div class="desktop-frame">
+      <div class="header">
+        <div style="display: flex; align-items: center; gap: 12px;">
+          <div class="logo"></div>
+          <span style="font-weight: 700;">Brand</span>
+        </div>
+        <div style="display: flex; gap: 28px; font-size: 14px; color: var(--ink-2);">
+          <span>Products</span><span>Pricing</span><span>Resources</span><span>About</span>
+        </div>
+        <a href="#" class="btn" style="margin: 0; padding: 8px 16px;">Sign in</a>
+      </div>
+      <div class="hero" style="padding: 80px 40px;">
+        <h1 style="font-size: 56px;">Title</h1>
+        <p style="font-size: 18px; max-width: 600px; margin: 16px auto 0;">Three-column grid for wide screens with breathing room.</p>
+        <a href="#" class="btn">Get started</a>
+      </div>
+      <div class="cards cols-3" style="padding: 16px 40px 32px;">
+        <div class="card"><h3>Card A</h3><p>Description</p></div>
+        <div class="card"><h3>Card B</h3><p>Description</p></div>
+        <div class="card"><h3>Card C</h3><p>Description</p></div>
+        <div class="card"><h3>Card D</h3><p>Description</p></div>
+        <div class="card"><h3>Card E</h3><p>Description</p></div>
+        <div class="card"><h3>Card F</h3><p>Description</p></div>
+      </div>
+    </div>
+  </div>
+</div>
+<p style="text-align:center; margin-top:24px; font-size:13px; color:var(--ink-3);">Web responsive template · <span class="note">3 breakpoints side-by-side</span> · replace cards with your content</p>
+</body>
+</html>

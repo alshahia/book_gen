@@ -1,0 +1,42 @@
+# Chapter Ledger — [Working Title]
+
+One row per chapter. Orchestrator and reviewers read this instead of re-reading chapter content to check status.
+
+| Chapter | Status | Depends on | Word count | Dev review | Line edit | T1-exit | T3-exit | frozen-intact | tashkeel-ratio | Notes |
+|---|---|---|---|---|---|---:|---:|---|---:|---|
+| ch-01 | planned | independent | - | - | - | - | - | - | - | |
+| ch-02 | drafted | independent | 2,450 | pending | - | - | - | - | - | |
+| ch-03 | dev-reviewed | ch-01, ch-02 | 2,100 | pass | pending | - | - | - | - | |
+| ch-04 | approved | ch-03 | 2,300 | pass | pass | - | - | - | - | |
+
+## Mechanical gate log
+
+Append-only. The orchestrator records one entry after the chapter gate pass using the script exits and key metrics:
+
+`ch-NN | T1:0 | T3:0 | frozen:true | tashkeel:0.153 | timestamp`
+
+- `T1-exit` and `T3-exit` are process exit codes (`0` = pass).
+- `frozen-intact` is the `book_check.py` frozen-line result.
+- `tashkeel-ratio` is the measured ratio returned by `book_check.py`; use `-` when no Arabic target applies.
+
+<!-- ponytail: one append-only chapter table is enough; avoid a second per-chapter status store. -->
+
+Status values, in order: `planned` → `drafted` → `dev-reviewed` → `line-edited` → `approved`
+
+Rules:
+- Only `approved` chapters count toward the whole-book copy-edit pass.
+- Removing/reordering an `approved` chapter requires a user checkpoint.
+- Adding a new chapter row always requires a user checkpoint.
+- An `in-progress` (not yet `drafted`) chapter can be freely revised without a checkpoint, within approved scope.
+
+## Mechanical gates
+
+- **`book_check.py` — Phase 6 chapter-completion gate:** its exit code and JSON metrics are recorded in `T1-exit`, `frozen-intact`, and `tashkeel-ratio`.
+- **`strip_publish_annotations.py` — Phase 6 clean-export gate:** its exit code is recorded in `T3-exit` after clean chapter output is produced.
+- **Orchestrator — after each gate pass:** appends one line to `## Mechanical gate log`. The scripts emit results; they do not write this ledger directly.
+
+## Open questions
+
+1. Should `T3-exit` be recorded per chapter when the cleaner runs as one batch over the whole book?
+2. Should no-target tashkeel values use `-`, `n/a`, or `0.000` in the table?
+3. Which timezone and timestamp precision should gate-log entries use?
