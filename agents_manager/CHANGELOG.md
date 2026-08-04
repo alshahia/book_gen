@@ -2,6 +2,25 @@
 
 All notable changes to the `agents_manager` system. Newest on top.
 
+## Book Kit v0.2.0 — translation-mode + mechanical review (full release) (2026-08-04)
+
+**Full release.** Promotes v0.2.0-alpha to v0.2.0 with four production-grade features for translation-mode projects: figure extraction, RTL TOC, Arabic-Indic page numbers, live progress dashboard. All four validated against the 29-file `agentic-design-patterns-ar` project — see `books/agentic-design-patterns-ar/exports/SMOKE_REPORT.md`.
+
+### What's new in v0.2.0 (vs v0.2.0-alpha)
+
+1. **`extract_figures.py` (F1, new)** — wraps poppler's `pdfimages -png -p`. Emits per-PDF PNGs + `manifest.json` with `{page, num, width, height, path}`. Self-checked against `Chapter 1_ Prompt Chaining.pdf` (2 PNGs extracted). Full batch (3 spot-checked PDFs) = 67 images extracted.
+2. **`md2pdf.py` patch (F2)** — adds `--figures-manifest FILE` flag. Scans each chapter for `> **الشكل N:** caption` placeholders and prepends an `<img src="file://...">` from the manifest in order of appearance. Self-check verifies sequential insertion and graceful fallback when placeholders exceed manifest size. CSS rule added for `img` (`max-width: 100%; margin: 1.2em auto; bordered`).
+3. **`build_exports.py` patch (F3)** — RTL-aware TOC + Arabic-Indic page numbers. Activates when `style-guide.md` declares `rtl: true` / `language: ar` OR when the style-guide body is majority-Arabic (heuristic fallback). Wraps the TOC in `<div dir="rtl">` for markdown renderers. Added `--force` to skip the book_check gate when exporting during development.
+4. **`poll_progress.py` (F4, new)** — two-mode progress dashboard:
+   - `--once`: snapshot to stdout (per-chapter: status / parts / age / file size / stuck flag).
+   - `--watch`: 15s loop writes `exports/.dashboard.html` with `<meta http-equiv="refresh" content="5">` (no JS framework). Stuck detection: `last_updated > 30 min AND status in (in_progress, partial)`. Self-checked with synthetic stuck/complete chapters.
+   - Glob now covers `ch-*.md` + `app-*.md` + `introduction.md` + `preface.md` — was previously `ch-*.md` only, missing the 7 appendices in the smoke project.
+
+### What's still open
+
+- Master dispatch loop for the two-pass `book-reviewer` — shipped as a skill, not yet wired into orchestrator. Punt to v0.3.0.
+- Source PDF `pdftotext -layout` URL truncation bug — found 15 cases via bilingual_smoke. Not in book-kit scope; flag upstream in source extraction.
+
 ## Book Kit v0.2.0-alpha — translation-mode + mechanical review (2026-08-04)
 
 **Translations get first-class book-gen support.** Adapts the book-kit for projects that translate an existing source work (Arabic, etc.) into a book, instead of authoring from scratch.
