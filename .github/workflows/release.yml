@@ -14,72 +14,54 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Extract CHANGELOG entry for tag
-        id: changelog
-        shell: bash
+      - name: Delete existing release for tag (if any)
         env:
           TAG: ${{ github.ref_name }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          existing=$(curl -s -H "Authorization: token $GH_TOKEN" \
+            "https://api.github.com/repos/${{ github.repository }}/releases/tags/$TAG" \
+            | grep -o '"id":[0-9]*' | head -1 | grep -o '[0-9]*' || echo "")
+          if [ -n "$existing" ]; then
+            echo "Existing release id=$existing for tag $TAG — deleting before re-create"
+            curl -s -X DELETE -H "Authorization: token $GH_TOKEN" \
+              "https://api.github.com/repos/${{ github.repository }}/releases/$existing" \
+              > /dev/null
+          fi
+
+      - name: Build release body from CHANGELOG
+        env:
+          TAG: ${{ github.ref_name }}
+        shell: bash
         run: |
           set -e
-          echo "Extracting CHANGELOG block for $TAG"
-          BODY=$(python3 -c "
-          import re, os
-          tag = os.environ.get('TAG', 'v0.0.0')
-          with open('book-kit/CHANGELOG.md', encoding='utf-8') as f:
+          echo "Building release body for $TAG"
+          python3 - <<'PYEOF'
+          import os, re
+          tag = os.environ["TAG"]
+          with open("book-kit/CHANGELOG.md", encoding="utf-8") as f:
               text = f.read()
-          pat = re.compile(r'^##\s+' + re.escape(tag) + r'[^\n]*\n(.*?)(?=^##\s+|\Z)', re.MULTILINE | re.DOTALL)
+          pat = re.compile(
+              r"^##\s+" + re.escape(tag) + r"[^\n]*\n(.*?)(?=^##\s+|\Z)",
+              re.MULTILINE | re.DOTALL,
+          )
           m = pat.search(text)
-          if m:
-              print(m.group(1).strip())
-          else:
-              print(f'Release {tag}')
-          ")
-          echo "body length: ${#BODY}"
-          echo "body preview: $(echo "$BODY" | head -c 200)"
-          {
-            echo "name=$TAG"
-            echo "body<<CHANGELOG_EOF"
-            echo "$BODY"
-            echo "CHANGELOG_EOF"
-          } >> "$GITHUB_OUTPUT"
-
-      - name: Delete existing release for tag (if any)
-        env:
-          TAG: ${{ github.ref_name }}
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        shell: bash
-        run: |
-          existing=$(curl -s -H "Authorization: token $GH_TOKEN" \
-            "https://api.github.com/repos/${{ github.repository }}/releases/tags/$TAG" \
-            | grep -o '"id":[0-9]*' | head -1 | grep -o '[0-9]*' || echo "")
-          if [ -n "$existing" ]; then
-            echo "Existing release id=$existing for tag $TAG — deleting before re-create"
-            curl -s -X DELETE -H "Authorization: token $GH_TOKEN" \
-              "https://api.github.com/repos/${{ github.repository }}/releases/$existing" \
-              > /dev/null
-          fi
-
-      - name: Delete existing release for tag (if any)
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAG: ${{ github.ref_name }}
-        shell: bash
-        run: |
-          existing=$(curl -s -H "Authorization: token $GH_TOKEN" \
-            "https://api.github.com/repos/${{ github.repository }}/releases/tags/$TAG" \
-            | grep -o '"id":[0-9]*' | head -1 | grep -o '[0-9]*' || echo "")
-          if [ -n "$existing" ]; then
-            echo "Existing release id=$existing for tag $TAG — deleting before re-create"
-            curl -s -X DELETE -H "Authorization: token $GH_TOKEN" \
-              "https://api.github.com/repos/${{ github.repository }}/releases/$existing" \
-              > /dev/null
-          fi
+          body = m.group(1).strip() if m else f"Release {tag}"
+          with open("/tmp/release-body.md", "w", encoding="utf-8") as f:
+              f.write(body)
+          with open("/tmp/release-name", "w", encoding="utf-8") as f:
+              f.write(tag)
+          print(f"body length: {len(body)}")
+          PYEOF
+          echo "body preview:"
+          head -c 200 /tmp/release-body.md
 
       - name: Create release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
-          name: ${{ steps.changelog.outputs.name }}
-          body: ${{ steps.changelog.outputs.body }}
+          name_file: /tmp/release-name
+          body_path: /tmp/release-body.md
           generate_release_notes: false
           fail_on_unmatched_files: false
