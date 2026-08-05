@@ -42,6 +42,22 @@ jobs:
               f.write("name=" + tag + "\n")
           PYEOF
 
+      - name: Delete existing release for tag (if any)
+        env:
+          TAG: ${{ github.ref_name }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          existing=$(curl -s -H "Authorization: token $GH_TOKEN" \
+            "https://api.github.com/repos/${{ github.repository }}/releases/tags/$TAG" \
+            | grep -o '"id":[0-9]*' | head -1 | grep -o '[0-9]*' || echo "")
+          if [ -n "$existing" ]; then
+            echo "Existing release id=$existing for tag $TAG — deleting before re-create"
+            curl -s -X DELETE -H "Authorization: token $GH_TOKEN" \
+              "https://api.github.com/repos/${{ github.repository }}/releases/$existing" \
+              > /dev/null
+          fi
+
       - name: Create release
         uses: softprops/action-gh-release@v2
         with:
