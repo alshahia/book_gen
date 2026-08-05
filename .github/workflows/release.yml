@@ -20,12 +20,12 @@ jobs:
         env:
           TAG: ${{ github.ref_name }}
         run: |
-          echo "::group::changelog extraction for $TAG"
+          set -e
+          mkdir -p /tmp/release-artifacts
           echo "Extracting CHANGELOG block for $TAG from book-kit/CHANGELOG.md"
           python3 - <<'PYEOF'
-          import re, os, sys
+          import re, os
           tag = os.environ.get("TAG", "v0.0.0")
-          print(f"TAG env = {tag!r}")
           with open("book-kit/CHANGELOG.md", encoding="utf-8") as f:
               text = f.read()
           pat = re.compile(
@@ -34,22 +34,19 @@ jobs:
           )
           m = pat.search(text)
           if not m:
-              print(f"::warning::no CHANGELOG entry for {tag}; using default body")
               body = f"Release {tag}"
           else:
               body = m.group(1).strip()
-          print(f"body length: {len(body)}")
-          print(f"body preview: {body[:200]}")
-          body_path = os.environ["GITHUB_OUTPUT"]
-          print(f"GITHUB_OUTPUT = {body_path}")
-          with open(body_path, "a", encoding="utf-8") as f:
-              f.write("body<<EOF\n" + body + "\nEOF\n")
+          with open("/tmp/release-artifacts/body.md", "w", encoding="utf-8") as f:
+              f.write(body)
+          with open("/tmp/release-artifacts/name", "w", encoding="utf-8") as f:
+              f.write(tag)
+          # Also write outputs for softprops
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as f:
+              f.write("body_path=/tmp/release-artifacts/body.md\n")
               f.write("name=" + tag + "\n")
-          print("Wrote body and name to GITHUB_OUTPUT")
           PYEOF
-          echo "::endgroup::"
-          echo "GITHUB_OUTPUT file contents:"
-          cat "$GITHUB_OUTPUT"
+          echo "body length: $(wc -c < /tmp/release-artifacts/body.md)"
 
       - name: Delete existing release for tag (if any)
         env:
@@ -72,6 +69,6 @@ jobs:
         with:
           tag_name: ${{ github.ref_name }}
           name: ${{ steps.changelog.outputs.name }}
-          body: ${{ steps.changelog.outputs.body }}
+          body_path: /tmp/release-artifacts/body.md
           generate_release_notes: false
           fail_on_unmatched_files: false
