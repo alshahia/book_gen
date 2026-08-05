@@ -1,7 +1,7 @@
 # Scripts — flag reference
 
-All 8 scripts live in `book-kit/book_workflow/scripts/`. They're
-stdlib-only, idempotent, and ship with `--self-check` plus 77 pytest
+All 9 scripts live in `book-kit/book_workflow/scripts/`. They're
+stdlib-only, idempotent, and ship with `--self-check` plus 89 pytest
 tests (`cd book-kit && py -m pytest tests/`).
 
 ---
@@ -47,6 +47,61 @@ python book_check.py <project-root>
    (`yes` to skip the drift check for that chapter).
 
 **Exit codes:** 0 = pass, 1 = at least one failure.
+
+---
+
+## check_chapter.py
+
+Per-chapter prose enforcer. Runs eight rule-based checks against a single
+chapter file and emits a JSON payload (default) or a markdown report
+(`--json` not set). Designed to be invoked per chapter during writing /
+pre-publish gates.
+
+**Usage:**
+```sh
+python check_chapter.py <chapter.md> [--config <style-guide.md>]
+                            [--json] [--task <task-id>] [--report-dir DIR]
+```
+
+**Flags:**
+| Flag | Default | Purpose |
+|---|---|---|
+| `<chapter>` (positional) | — | Chapter markdown to check (e.g. `chapters/ch-03.md`) |
+| `--config PATH` | (none) | Path to `style-guide.md` — adds frontmatter overrides for `Beat window:`, `Forbidden patterns:` (CSV), `Countdown tokens:` (CSV). Falls back to script defaults (600-750 window, no forbidden patterns, `["بقي", "لم يبق"]` countdown tokens). |
+| `--json` | false | Emit `{"chapter": "ch-NN", "checks": [{name, status, evidence}]}` to stdout instead of writing the markdown report. |
+| `--task ID` | `unknown` | Task id used in the markdown report's filename + metadata header. |
+| `--report-dir DIR` | `reports` | Directory prefix; markdown report is written to `<DIR>/<task-id>/check_chapter_<chapter>.md`. |
+
+**Checks (all return `CheckResult(name, status, evidence)`):**
+| Check | Source | Failure / Warn rule |
+|---|---|---|
+| `word_count_per_beat` | H2/H3 split, frontmatter `Beat window: lo - hi` (default 600-750) | FAIL if any beat < 0.5*lo or > 1.5*hi; WARN if any beat in `[0.5*lo, lo) ∪ (hi, 1.5*hi]`; else PASS |
+| `banned_patterns` | style-guide frontmatter `Forbidden patterns: <csv>` (or `## Forbidden patterns` code block) | FAIL on any regex match outside code fences |
+| `quote_pair_balance` | prose | FAIL if `«` count ≠ `»` count; WARN if any single paragraph has both an opener and a closer (suggests bad nesting) |
+| `dialogue_own_line` | prose | WARN if a paragraph mixes narration with `«…»` on the same line (closing punctuation alone is OK) |
+| `closing_hook` | last prose paragraph before `<!-- end-of-chapter -->` marker, falling back to last paragraph of file | FAIL if last paragraph > 8 words (configurable via `max_words`) — strict short-imperative convention |
+| `countdown` | filename `ch-NN` ≥ 3 (hard-coded until P5), `Countdown tokens:` (CSV) | FAIL if fewer than 1 occurrence; chapters before the threshold are skipped (PASS-with-skip-evidence) |
+| `arabic_punctuation` | prose | FAIL on any Latin `, ; ? !` (period excluded) on a line that contains Arabic characters; URL lines + code fences skipped |
+| `sentence_length` | prose | WARN if median sentence word-count > 22 (configurable via `target_median`) |
+
+**Exit codes:** 0 if no FAIL, 1 if any FAIL, 2 if the input file is missing.
+
+**Tokenization is local.** `word_count`, `read_md`, `outside`, and the
+`FENCE` regex are copied verbatim from `book_check.py` rather than
+imported across script boundaries — both scripts must stay runnable
+standalone. Keep them in sync if either is updated.
+
+**Use it like:**
+```sh
+# Per-chapter pre-gate (writes markdown report under reports/<task>/)
+python check_chapter.py chapters/ch-03.md \
+    --config style-guide.md \
+    --task T-2026-08-05-001
+
+# Same, but JSON for pipelines
+python check_chapter.py chapters/ch-03.md \
+    --config style-guide.md --json | jq '.checks[] | select(.status=="FAIL")'
+```
 
 ---
 
