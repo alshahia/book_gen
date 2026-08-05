@@ -1,5 +1,6 @@
 """Tests for book_check.py — chapter regex, fence balance, glossary parser, source-map parser,
-tolerance override (style-guide.md frontmatter), and per-chapter source_ratio + glossary_drift_exempt."""
+tolerance override (style-guide.md frontmatter), per-chapter source_ratio + glossary_drift_exempt,
+and JSON Schema validation for frozen-lines + translate-progress."""
 from pathlib import Path
 
 from book_check import (
@@ -13,6 +14,9 @@ from book_check import (
     untranslated_english_ratio,
     word_count,
 )
+
+KIT_ROOT = Path(__file__).resolve().parents[1]
+FIXTURES = KIT_ROOT / "tests" / "fixtures"
 
 
 def test_self_check_passes():
@@ -170,3 +174,36 @@ def test_source_map_percentage_ratio_override(tmp_project):
     )
     smap = source_map(tmp_project / "source-map.md")
     assert smap["ch-01.md"]["source_ratio_override"] == 0.60
+
+
+# --- JSON Schema validation (frozen-lines.json + .translate-progress.json) ---
+
+import shutil
+import subprocess
+import sys
+
+
+def _run_book_check(tmp_project):
+    """Invoke book_check.py as a subprocess on tmp_project; return CompletedProcess."""
+    return subprocess.run(
+        [sys.executable, str(KIT_ROOT / "book_workflow" / "scripts" / "book_check.py"), str(tmp_project)],
+        capture_output=True, text=True, timeout=30,
+    )
+
+
+def test_schema_valid_frozen_lines(tmp_project):
+    """A frozen-lines.json that satisfies the schema must NOT trigger a schema FAIL."""
+    shutil.copy(FIXTURES / "frozen-lines-valid.json", tmp_project / "frozen-lines.json")
+    r = _run_book_check(tmp_project)
+    assert r.returncode == 0, f"expected PASS, got rc={r.returncode}, stderr={r.stderr}"
+    assert "FAIL: schema" not in r.stderr, f"unexpected schema failure: {r.stderr}"
+
+
+def test_schema_invalid_frozen_lines(tmp_project):
+    """A mutated frozen-lines.json (missing required 'chapters' field) must FAIL with rc=2
+    and the field name must appear in stderr."""
+    shutil.copy(FIXTURES / "frozen-lines-invalid.json", tmp_project / "frozen-lines.json")
+    r = _run_book_check(tmp_project)
+    assert r.returncode == 2, f"expected FAIL (rc=2), got rc={r.returncode}, stderr={r.stderr}"
+    assert "FAIL: schema" in r.stderr, f"missing FAIL: schema line in stderr: {r.stderr}"
+    assert "chapters" in r.stderr.lower(), f"field name 'chapters' missing from stderr: {r.stderr}"

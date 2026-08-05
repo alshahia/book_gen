@@ -6,6 +6,42 @@ import re
 import sys
 import unicodedata
 
+try:
+    import jsonschema
+    _HAS_JSONSCHEMA = True
+except ImportError:
+    _HAS_JSONSCHEMA = False
+
+# Schema dir is co-located with the templates; resolved relative to this file so
+# the validator works from any cwd.
+SCHEMA_DIR = Path(__file__).resolve().parent.parent / "book-agents" / "templates"
+_schema_warned = False
+
+
+def _validate_against_schema(data, schema_filename, label):
+    """Validate `data` against `<SCHEMA_DIR>/<schema_filename>`.
+
+    On `ValidationError`: print `FAIL: schema: <label> <error.message>` and exit(2).
+    If `jsonschema` is missing: print a single info line for the run, then continue.
+    If the schema file is absent (not yet shipped): skip silently.
+    """
+    global _schema_warned
+    if not _HAS_JSONSCHEMA:
+        if not _schema_warned:
+            print("info: install jsonschema for schema validation", file=sys.stderr)
+            _schema_warned = True
+        return
+    schema_path = SCHEMA_DIR / schema_filename
+    if not schema_path.exists():
+        return
+    try:
+        schema_obj = json.loads(schema_path.read_text(encoding="utf-8"))
+        jsonschema.validate(data, schema=schema_obj)
+    except jsonschema.ValidationError as e:
+        print(f"FAIL: schema: {label} {e.message}", file=sys.stderr)
+        sys.exit(2)
+
+
 FENCE = re.compile(r"```.*?```", re.DOTALL)
 # ponytail: accept slug-suffixed names (ch-01-prompt-chaining.md) AND plain names (ch-01.md) AND non-chapter files (introduction.md, app-a-...md) AND letter-suffixed names (ch-a.md, ch-b.md used in tests).
 CHAPTER = re.compile(r"^(ch-(?:\d{1,3}|[a-z])(?:[-_.][\w-]+)?|introduction|preface|app-[a-z](?:[-_.][\w-]+)?)\.md$", re.I)
@@ -194,7 +230,10 @@ def main(argv=None):
     frozen_json = {}
     fp = root / "frozen-lines.json"
     if fp.exists():
-        try: frozen_json = json.loads(fp.read_text(encoding="utf-8")).get("chapters", {})
+        try:
+            _frozen_raw = json.loads(fp.read_text(encoding="utf-8"))
+            _validate_against_schema(_frozen_raw, "frozen-lines.schema.json", str(fp))
+            frozen_json = _frozen_raw.get("chapters", {})
         except (OSError, ValueError) as e: print(f"warning: invalid frozen-lines.json: {e}", file=sys.stderr)
 
     # Tolerances: read from style-guide.md frontmatter `tolerances:` block.
@@ -339,6 +378,7 @@ def main(argv=None):
     if progress_path.exists():
         try:
             raw = json.loads(progress_path.read_text(encoding="utf-8"))
+            _validate_against_schema(raw, ".translate-progress.schema.json", str(progress_path))
             entries = raw.get("chapters", {})
             from datetime import datetime, timezone
             now = datetime.now(timezone.utc)

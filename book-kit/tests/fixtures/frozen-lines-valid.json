@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "chapters": {
+    "ch-01.md": {
+      "frozen_lines": [
+        {
+          "line_number": 1,
+          "sha256": "a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0",
+          "source": "test fixture",
+          "why": "schema validation happy path"
+        }
+      ]
+    }
+  }
+}
