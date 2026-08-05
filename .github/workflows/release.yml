@@ -59,6 +59,22 @@ jobs:
               > /dev/null
           fi
 
+      - name: Delete existing release for tag (if any)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+        shell: bash
+        run: |
+          existing=$(curl -s -H "Authorization: token $GH_TOKEN" \
+            "https://api.github.com/repos/${{ github.repository }}/releases/tags/$TAG" \
+            | grep -o '"id":[0-9]*' | head -1 | grep -o '[0-9]*' || echo "")
+          if [ -n "$existing" ]; then
+            echo "Existing release id=$existing for tag $TAG — deleting before re-create"
+            curl -s -X DELETE -H "Authorization: token $GH_TOKEN" \
+              "https://api.github.com/repos/${{ github.repository }}/releases/$existing" \
+              > /dev/null
+          fi
+
       - name: Create release
         uses: softprops/action-gh-release@v2
         with:
