@@ -1,0 +1,54 @@
+name: release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Extract CHANGELOG entry for tag
+        id: changelog
+        shell: bash
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          echo "Extracting CHANGELOG block for $TAG from book-kit/CHANGELOG.md"
+          python3 - <<'PYEOF'
+          import re, os, sys
+          tag = os.environ.get("TAG", "v0.0.0")
+          tag_version = tag.lstrip("v")
+          with open("book-kit/CHANGELOG.md", encoding="utf-8") as f:
+              text = f.read()
+          # Match the heading `## vX.Y.Z — <theme> (<date>)` and capture until the next `## `
+          pat = re.compile(
+              r"^##\s+" + re.escape(tag) + r"[^\n]*\n(.*?)(?=^##\s+|\Z)",
+              re.MULTILINE | re.DOTALL,
+          )
+          m = pat.search(text)
+          if not m:
+              print(f"::warning::no CHANGELOG entry for {tag}; using default body")
+              body = f"Release {tag}"
+          else:
+              body = m.group(1).strip()
+          # Strip the v1.0.0 'What's still open' section + onward if present (keep first major block)
+          body_path = os.environ["GITHUB_OUTPUT"]
+          with open(body_path, "a", encoding="utf-8") as f:
+              f.write("body<<EOF\n" + body + "\nEOF\n")
+              f.write("name=" + tag + "\n")
+          PYEOF
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: ${{ steps.changelog.outputs.name }}
+          body: ${{ steps.changelog.outputs.body }}
+          generate_release_notes: false
+          fail_on_unmatched_files: false
