@@ -21,32 +21,27 @@ jobs:
           TAG: ${{ github.ref_name }}
         run: |
           set -e
-          mkdir -p /tmp/release-artifacts
-          echo "Extracting CHANGELOG block for $TAG from book-kit/CHANGELOG.md"
-          python3 - <<'PYEOF'
+          echo "Extracting CHANGELOG block for $TAG"
+          BODY=$(python3 -c "
           import re, os
-          tag = os.environ.get("TAG", "v0.0.0")
-          with open("book-kit/CHANGELOG.md", encoding="utf-8") as f:
+          tag = os.environ.get('TAG', 'v0.0.0')
+          with open('book-kit/CHANGELOG.md', encoding='utf-8') as f:
               text = f.read()
-          pat = re.compile(
-              r"^##\s+" + re.escape(tag) + r"[^\n]*\n(.*?)(?=^##\s+|\Z)",
-              re.MULTILINE | re.DOTALL,
-          )
+          pat = re.compile(r'^##\s+' + re.escape(tag) + r'[^\n]*\n(.*?)(?=^##\s+|\Z)', re.MULTILINE | re.DOTALL)
           m = pat.search(text)
-          if not m:
-              body = f"Release {tag}"
+          if m:
+              print(m.group(1).strip())
           else:
-              body = m.group(1).strip()
-          with open("/tmp/release-artifacts/body.md", "w", encoding="utf-8") as f:
-              f.write(body)
-          with open("/tmp/release-artifacts/name", "w", encoding="utf-8") as f:
-              f.write(tag)
-          # Also write outputs for softprops
-          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as f:
-              f.write("body_path=/tmp/release-artifacts/body.md\n")
-              f.write("name=" + tag + "\n")
-          PYEOF
-          echo "body length: $(wc -c < /tmp/release-artifacts/body.md)"
+              print(f'Release {tag}')
+          ")
+          echo "body length: ${#BODY}"
+          echo "body preview: $(echo "$BODY" | head -c 200)"
+          {
+            echo "name=$TAG"
+            echo "body<<CHANGELOG_EOF"
+            echo "$BODY"
+            echo "CHANGELOG_EOF"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Delete existing release for tag (if any)
         env:
@@ -69,6 +64,6 @@ jobs:
         with:
           tag_name: ${{ github.ref_name }}
           name: ${{ steps.changelog.outputs.name }}
-          body_path: /tmp/release-artifacts/body.md
+          body: ${{ steps.changelog.outputs.body }}
           generate_release_notes: false
           fail_on_unmatched_files: false
