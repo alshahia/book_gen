@@ -20,10 +20,12 @@ jobs:
         env:
           TAG: ${{ github.ref_name }}
         run: |
+          echo "::group::changelog extraction for $TAG"
           echo "Extracting CHANGELOG block for $TAG from book-kit/CHANGELOG.md"
           python3 - <<'PYEOF'
           import re, os, sys
           tag = os.environ.get("TAG", "v0.0.0")
+          print(f"TAG env = {tag!r}")
           with open("book-kit/CHANGELOG.md", encoding="utf-8") as f:
               text = f.read()
           pat = re.compile(
@@ -36,11 +38,18 @@ jobs:
               body = f"Release {tag}"
           else:
               body = m.group(1).strip()
+          print(f"body length: {len(body)}")
+          print(f"body preview: {body[:200]}")
           body_path = os.environ["GITHUB_OUTPUT"]
+          print(f"GITHUB_OUTPUT = {body_path}")
           with open(body_path, "a", encoding="utf-8") as f:
               f.write("body<<EOF\n" + body + "\nEOF\n")
               f.write("name=" + tag + "\n")
+          print("Wrote body and name to GITHUB_OUTPUT")
           PYEOF
+          echo "::endgroup::"
+          echo "GITHUB_OUTPUT file contents:"
+          cat "$GITHUB_OUTPUT"
 
       - name: Delete existing release for tag (if any)
         env:
