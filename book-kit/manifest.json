@@ -1,6 +1,6 @@
 {
   "name": "book-kit",
-  "version": "0.22.0",
+  "version": "1.0.0",
   "min_python": "3.8",
   "engine_files": [
     {
@@ -36,7 +36,7 @@
     {
       "path": "README.md",
       "engine_owned": true,
-      "sha256": "ffe64342c45dfb1c6fb0f5e06053bed722cbe157fb7c5a917caa2d6e6681a673"
+      "sha256": "3d5021a9ab3a2f6643d0f8c4834c83af9813f41f846e053ee8371bc4995a1b6d"
     },
     {
       "path": "CONTRIBUTING.md",
@@ -127,6 +127,11 @@
       "path": "book_workflow/scripts/bilingual_smoke.py",
       "engine_owned": true,
       "sha256": "975a2d02d8a57c8f2bd21ff1b3fa89f8a8560cac580ab2d63421c0a1a32766bb"
+    },
+    {
+      "path": "book_workflow/scripts/fix_source_urls.py",
+      "engine_owned": true,
+      "sha256": "2b9c005fc319c21f26ad512f4339ffcb6c1e82fceb86bd703054e3c1eb73fc33"
     },
     {
       "path": "book_workflow/scripts/book_check.py",
@@ -261,7 +266,7 @@
     {
       "path": "docs/QUICKSTART.md",
       "engine_owned": true,
-      "sha256": "3850376573d3075e17cd095a3e8becad98db7a5e87f08ee7443c31e51cc5bd39"
+      "sha256": "3ac90097c3751ec8567a8ee083c6b82dbc5412638b96ff259df4f3ea9fa383d7"
     },
     {
       "path": "docs/ARCHITECTURE.md",
@@ -277,6 +282,66 @@
       "path": "docs/UPGRADE.md",
       "engine_owned": true,
       "sha256": "3e17258f40e9ee50c385b40bb6059cfa58225e5f0cf948eb91e9371462ee00a6"
+    },
+    {
+      "path": "docs/WORKFLOW.md",
+      "engine_owned": true,
+      "sha256": "6e35f5541e0dfe80b9016dbfaf4643c542cbb74728eb25c157f033348e02254a"
+    },
+    {
+      "path": "docs/TRANSLATION_MODE.md",
+      "engine_owned": true,
+      "sha256": "1f7f6cd96284d845b16318bf242580ccbce78c57585ffdbe24bee48d50f5afaa"
+    },
+    {
+      "path": "docs/SCRIPTS.md",
+      "engine_owned": true,
+      "sha256": "bf1838e42aa931f68889e64c087387c65f2201bf3b079897aed3806b1bfd0aae"
+    },
+    {
+      "path": "pytest.ini",
+      "engine_owned": true,
+      "sha256": "13e6621c88dade9d49ddb7f0009073973fcc81b05566ad9dcaaf3c0467158ee9"
+    },
+    {
+      "path": "tests/conftest.py",
+      "engine_owned": true,
+      "sha256": "5bac3a68099e014dbd27915ce521b6401ef3241473fd686dbef5081ccd7e19e7"
+    },
+    {
+      "path": "tests/test_fix_source_urls.py",
+      "engine_owned": true,
+      "sha256": "9f1953c6f736247a9aeb8bcfaeb52f73ce15b09e7bde4b756f9b39a0e030cdc7"
+    },
+    {
+      "path": "tests/test_book_check.py",
+      "engine_owned": true,
+      "sha256": "f770315f46181a9110dbd43294cf2818f39b9b065c700af2149f2e25b737a0ad"
+    },
+    {
+      "path": "tests/test_split_source.py",
+      "engine_owned": true,
+      "sha256": "7255f98d2cdb8db83a2399b4d7ebd2cb3a3bfc2001fa3258aef4694b7e52dbf7"
+    },
+    {
+      "path": "tests/test_extract_figures.py",
+      "engine_owned": true,
+      "sha256": "9a2a867366f65f02d2b1fbd2f72a7bce6035ed2abfdcff23411c3492a3a9da81"
+    },
+    {
+      "path": "tests/test_poll_progress.py",
+      "engine_owned": true,
+      "sha256": "9327bf8862605a7648e6dc72f5e8f06353acead5dc13e98c6370e8e75d1313e0"
+    },
+    {
+      "path": "tests/test_build_exports.py",
+      "engine_owned": true,
+      "sha256": "ce889bd64732e6c73f924223a4dddf05e350cc0cc654dfc8617f5a9335bcc9b4"
+    },
+    {
+      "path": "tests/test_bilingual_smoke.py",
+      "engine_owned": true,
+      "sha256": "cefb9958aedc00798c38d6ca1b85fe4d759832ad90ec3340f8c144b1871ee24d"
     }
   ],
   "user_files": [

@@ -1,0 +1,173 @@
+# Scripts — flag reference
+
+All 7 scripts live in `book-kit/book_workflow/scripts/`. They're
+stdlib-only, idempotent, and ship with `--self-check` plus 63 pytest
+tests (`cd book-kit && py -m pytest tests/`).
+
+---
+
+## book_check.py
+
+Mechanical checks on a book's chapters. Runs as the gate before
+`build_exports.py` (which fails if `book_check.py` fails unless
+`--force` is passed).
+
+**Usage:**
+```sh
+python book_check.py <project-root>
+```
+
+**Checks:**
+| Check | Source | Failure |
+|---|---|---|
+| `fence_balance` | all `.md` in `chapters/` | unclosed triple-backtick fences |
+| `forbidden_patterns` | `style-guide.md` §Forbidden | regex match in prose |
+| `frozen_lines` | `frozen-lines.json` | line SHA-256 mismatch |
+| `glossary_drift` | `glossary.md` + all chapters | chapter missing term used by ≥80% of others |
+| `missing_h2` | `source-map.md` required_h2 | required H2 absent |
+| `source_ratio` | `source-map.md` word bounds | chapter outside ±40% of source |
+| `tashkeel` | `tashkeel-policy.md` | diacritic ratio outside tolerance |
+| `untranslated_english` | prose outside fences | >30% Latin words |
+| `word_window` | `style-guide.md` §Word-count windows | chapter outside min/max |
+
+**Exit codes:** 0 = pass, 1 = at least one failure.
+
+---
+
+## bilingual_smoke.py
+
+URL / bold-term / H2 diff between chapter and source. The translation
+content-coverage check.
+
+**Usage:**
+```sh
+python bilingual_smoke.py <project-root> [--out FILE]
+```
+
+**Findings per chapter:**
+| Finding | Meaning |
+|---|---|
+| `urls.missing` | URL in source but not in chapter at all |
+| `urls.rewritten` | URL in source changed to a different URL in chapter |
+| `urls.source_truncated` | Source URL is a prefix of chapter URL (chapter has canonical full URL — source-extraction bug) |
+| `bold_terms.expected_translation` | Bolded term in source prose correctly translated to Arabic (informational) |
+| `h2.missing_in_chapter` | Source H2 absent in chapter |
+| `h2.extra_in_chapter` | Chapter H2 not in source |
+
+Writes JSON report to `--out` or stdout. Exit 0 always (informational).
+
+---
+
+## split_source.py
+
+Chunked-write source sizer. Splits a source file at H2 boundaries per
+the protocol:
+
+| Source size | Parts | Target part size |
+|---|---|---|
+| ≤ 20 KB | 1 | whole file |
+| 20–50 KB | 2 | source_size / 2 |
+| > 50 KB | ⌈size / 18 KB⌉ | 18 KB |
+
+**Usage:**
+```sh
+python split_source.py <source> [--parts N] [--out DIR] [--prefix PREFIX]
+```
+
+**Outputs:**
+- `<prefix>-part-N.txt` — one file per part
+- `<prefix>-manifest.json` — sidecar with `{source, source_bytes, n_parts, parts: [{part, path, bytes}]}`
+
+Falls back to paragraph boundaries if source has no H2s.
+
+---
+
+## extract_figures.py
+
+Wraps poppler's `pdfimages -png -p`. Extracts embedded images from a
+PDF as PNGs and emits a manifest.
+
+**Usage:**
+```sh
+python extract_figures.py <pdf> [--out DIR] [--slug SLUG]
+```
+
+**Outputs:**
+- `figures/<slug>-page-<N>-<idx>.png` — extracted images
+- `figures/<slug>-manifest.json` — `{pdf, slug, figures: [{page, num, type, width, height, path}]}`
+
+Requires `pdfimages` on PATH (poppler 0.86+). Stdlib `subprocess` for the
+call.
+
+---
+
+## build_exports.py
+
+Builds TOC, glossary, index, and README for the book. RTL-aware with
+Arabic-Indic numerals when the style-guide declares RTL or Arabic.
+
+**Usage:**
+```sh
+python build_exports.py <project-root> [--force]
+```
+
+**Outputs:**
+- `exports/toc.md` — TOC with chapter titles + page placeholders
+- `exports/glossary.md` — terminology sorted case-insensitive
+- `exports/index.md` — term → chapter:line hits
+- `exports/README.md` — build manifest + deliverables list
+- `exports/manifest.json` — if `frozen-lines.json` exists at root
+
+`--force` skips the `book_check.py` gate (useful for development builds
+where you want to see partial output).
+
+---
+
+## poll_progress.py
+
+Watch a book's chapter state and emit a progress dashboard.
+
+**Usage:**
+```sh
+python poll_progress.py <project-root> [--once | --watch] [--interval N]
+```
+
+**Modes:**
+- `--once` — print snapshot to stdout, exit
+- `--watch` — loop every `--interval` seconds (default 15), update `<root>/exports/.dashboard.html`
+
+**Reads `.translate-progress.json`** if present. Stuck detection: any
+chapter with `status in (in_progress, partial)` and `last_updated > 30
+min ago` is flagged `stuck`.
+
+Glob covers `ch-*.md`, `app-*.md`, `introduction.md`, `preface.md`.
+
+---
+
+## fix_source_urls.py
+
+Repair 6 distinct `pdftotext` artifacts in source `.txt` files.
+
+**Usage:**
+```sh
+python fix_source_urls.py <source-dir> [--dry-run]
+python fix_source_urls.py --self-check
+```
+
+**Fixes:**
+| Pattern | Detection | Action |
+|---|---|---|
+| Pure-digit line after URL | `^\d+$` immediately after URL line | Drop the digit line |
+| `/N` glued to URL | `https?://.../(d{1,3})$` | Strip the trailing `/N` |
+| URL split across lines | URL line + URL-fragment line | Join them |
+| Doubled last segment | `wordword` at end of URL | Strip the second copy |
+| Trailing `..` | URL ending with `..` | Trim to single `.` |
+| Trailing `/#` | URL ending with `/#` | Strip the `#`, keep the `/` |
+
+**Known NOT auto-fixed** (10 documented edge cases — manual review):
+- Page numbers glued without `/` separator (e.g. `arxiv.org/abs/1707.0634712`)
+- Doubled segments not at end of URL (e.g. `databases/databases`)
+- Two URLs concatenated (e.g. `arxiv.org/pdf/...https://github.com/...`)
+- Concatenated adjacent path lines (e.g. `rankingsapi/v1/...`)
+
+Idempotent. Self-check covers all 6 patterns + regressions + idempotency.

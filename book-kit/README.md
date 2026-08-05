@@ -2,17 +2,19 @@
 
 A portable, cross-platform ZIP that turns any folder on any laptop into a
 long-form book-writing environment powered by OpenCode + the agents-manager
-multi-agent pipeline.
+multi-agent pipeline. Native books AND translations (Arabic, etc.) ship
+first-class.
 
 Drop `book-kit-<version>.zip` into a project, unzip, run one command, open
-OpenCode, say "write a book about X" — same 7-phase pipeline that produced
-`books/daily-focus/ch-01.md` in this repo.
+OpenCode, say "write a book about X" (or "translate book Y to Arabic") —
+same 7-phase pipeline that produced `books/daily-focus/ch-01.md` in this
+repo, with two-pass `book-reviewer` for translations.
 
 ## Quick start (60 seconds)
 
 ```sh
 # 1. Unzip into your project (any folder on any OS)
-unzip book-kit-0.1.0.zip -d my-book-project
+unzip book-kit-1.0.0.zip -d my-book-project
 cd my-book-project
 
 # 2. Install (Python 3.8+, stdlib only — no pip, no npm)
@@ -21,9 +23,11 @@ python install.py                # macOS / Linux
 install.bat                       # kit-root convenience wrapper
 bin\install-book-kit.bat          # same flow, callable from anywhere
 
-# 3. Launch OpenCode and say "write a book about productivity"
+# 3. Launch OpenCode and ask for a book
 opencode
 # > write a book about productivity
+# ... or, for translations:
+# > translate agentic-design-patterns.pdf to Arabic
 ```
 
 When run from inside the unzipped kit, `install.py` detects that the kit
@@ -45,13 +49,17 @@ The installer is idempotent, dry-run-able (`--check-only`), and reversable
 | `CLAUDE.md` | Project orientation for OpenCode sessions |
 | `agents_manager/` | 8 engine skills: orchestrator, writer, reviewer (translation-mode), master, 5 specialists |
 | `book_workflow/book-agents/templates/` | 18 book-phase templates + 1 JSON schema (intake, outline, source-map, etc.) |
+| `book_workflow/scripts/` | 7 stdlib-only tools: `book_check.py`, `bilingual_smoke.py`, `split_source.py`, `extract_figures.py`, `build_exports.py`, `poll_progress.py`, `fix_source_urls.py` |
+| `book_workflow/tests/` | 63 pytest tests covering all 7 scripts |
+| `pytest.ini` | pytest config |
 | `books/` | Workspace seed — your manuscripts live here |
 | `share/` | Inter-agent communication (`notes/`, `handoffs/`, `reports/`) |
 | `tasks/` | Task tracker files |
 | `scripts/` | `doctor.py`, `build_manifest.py`, `build_zip.py`, `smoke_test.py` |
 | `bin/` | `book-kit` (bash), `book-kit.cmd` (Windows) wrappers |
-| `docs/` | QUICKSTART, ARCHITECTURE, TROUBLESHOOTING, UPGRADE |
+| `docs/` | QUICKSTART, WORKFLOW, TRANSLATION_MODE, SCRIPTS, ARCHITECTURE, TROUBLESHOOTING, UPGRADE |
 | `CONTRIBUTING.md` | How to report bugs, suggest improvements, contribute |
+| `CHANGELOG.md` | Per-version release notes (newest on top) |
 | `manifest.json` | File allowlist + SHA-256 checksums |
 
 ## What's intentionally NOT in the kit
