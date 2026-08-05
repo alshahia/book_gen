@@ -1,7 +1,7 @@
 # Scripts — flag reference
 
-All 7 scripts live in `book-kit/book_workflow/scripts/`. They're
-stdlib-only, idempotent, and ship with `--self-check` plus 63 pytest
+All 8 scripts live in `book-kit/book_workflow/scripts/`. They're
+stdlib-only, idempotent, and ship with `--self-check` plus 77 pytest
 tests (`cd book-kit && py -m pytest tests/`).
 
 ---
@@ -23,12 +23,28 @@ python book_check.py <project-root>
 | `fence_balance` | all `.md` in `chapters/` | unclosed triple-backtick fences |
 | `forbidden_patterns` | `style-guide.md` §Forbidden | regex match in prose |
 | `frozen_lines` | `frozen-lines.json` | line SHA-256 mismatch |
-| `glossary_drift` | `glossary.md` + all chapters | chapter missing term used by ≥80% of others |
+| `glossary_drift` | `glossary.md` + all chapters | chapter missing term used by ≥80% of others (per-chapter exemption via `source-map.md` `glossary_drift_exempt`) |
 | `missing_h2` | `source-map.md` required_h2 | required H2 absent |
-| `source_ratio` | `source-map.md` word bounds | chapter outside ±40% of source |
+| `source_ratio` | `source-map.md` word bounds + global tolerance from `style-guide.md` frontmatter | chapter outside ±tolerance of source word count (per-chapter override via `source-map.md` `source_ratio_override`) |
 | `tashkeel` | `tashkeel-policy.md` | diacritic ratio outside tolerance |
-| `untranslated_english` | prose outside fences | >30% Latin words |
+| `untranslated_english` | prose outside fences, tolerance from `style-guide.md` frontmatter | >tolerance Latin words |
 | `word_window` | `style-guide.md` §Word-count windows | chapter outside min/max |
+
+**Tolerances:** the `source_ratio`, `untranslated_english`, and
+`glossary_drift` thresholds can be overridden two ways:
+
+1. **Project-wide**: in `style-guide.md` frontmatter:
+   ```yaml
+   tolerances:
+     untranslated_english: 0.30
+     source_ratio: 0.40
+     stuck_threshold_min: 30
+   ```
+   Missing keys fall back to the script defaults (0.30 / 0.40 / 30).
+
+2. **Per-chapter**: in `source-map.md` row columns
+   `source_ratio_override` (e.g. `0.50`) and `glossary_drift_exempt`
+   (`yes` to skip the drift check for that chapter).
 
 **Exit codes:** 0 = pass, 1 = at least one failure.
 
@@ -137,8 +153,9 @@ python poll_progress.py <project-root> [--once | --watch] [--interval N]
 - `--watch` — loop every `--interval` seconds (default 15), update `<root>/exports/.dashboard.html`
 
 **Reads `.translate-progress.json`** if present. Stuck detection: any
-chapter with `status in (in_progress, partial)` and `last_updated > 30
-min ago` is flagged `stuck`.
+chapter with `status in (in_progress, partial)` and `last_updated > N
+min ago` is flagged `stuck`. Threshold `N` defaults to 30 and is
+configurable via `style-guide.md` frontmatter `tolerances.stuck_threshold_min`.
 
 Glob covers `ch-*.md`, `app-*.md`, `introduction.md`, `preface.md`.
 
@@ -171,3 +188,36 @@ python fix_source_urls.py --self-check
 - Concatenated adjacent path lines (e.g. `rankingsapi/v1/...`)
 
 Idempotent. Self-check covers all 6 patterns + regressions + idempotency.
+
+---
+
+## md2pdf.py
+
+Render Arabic Markdown chapters to RTL PDF via HTML + Chrome/Edge
+headless. Used in the build chain after `extract_figures.py` to produce
+print-ready PDFs with embedded figure images.
+
+**Usage:**
+```sh
+python md2pdf.py <md-file> [<md-file> ...] [--out DIR] [--css FILE] [--figures-manifest FILE] [--keep-html]
+```
+
+**Flags:**
+| Flag | Default | Purpose |
+|---|---|---|
+| `<files>` (positional, ≥1) | — | Markdown chapter files to render |
+| `--out DIR` | `exports/pdf` | Output directory for PDFs |
+| `--css FILE` | (none) | Path to extra CSS appended to the bundled RTL stylesheet |
+| `--figures-manifest FILE` | (none) | Path to a manifest from `extract_figures.py`. When provided, the script scans each chapter for `> **الشكل N:**` blockquote placeholders and prepends the matching figure `<img>` in order of appearance. |
+| `--keep-html` | false | Also write intermediate HTML files to `<out>/html/` for debugging |
+
+**Behavior:**
+- Default CSS declares `direction: rtl` on `<body>`, sets Arabic fonts (Cairo / Sakkal Majalla / Segoe UI), and uses `LTR` + `unicode-bidi: embed` for `<pre>`/`<code>` blocks.
+- Chrome is auto-discovered: `$CHROME_PATH`, then common install paths for Google Chrome + Microsoft Edge.
+- Figure insertion is sequential: chapter placeholders 1, 2, 3… map to manifest figures in order. Placeholders beyond the manifest count stay verbatim. Extra manifest figures (no matching placeholder) are dropped.
+
+**Requires:**
+- `markdown-it-py` (`pip install markdown-it-py`)
+- Chrome or Edge installed (one of the auto-discovered paths)
+
+**Exit codes:** 0 = success, 1 = missing input files / Chrome not found / subprocess failure.

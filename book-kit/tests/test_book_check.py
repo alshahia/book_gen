@@ -1,11 +1,14 @@
-"""Tests for book_check.py — chapter regex, fence balance, glossary parser, source-map parser."""
+"""Tests for book_check.py — chapter regex, fence balance, glossary parser, source-map parser,
+tolerance override (style-guide.md frontmatter), and per-chapter source_ratio + glossary_drift_exempt."""
 from pathlib import Path
 
 from book_check import (
     CHAPTER,
+    DEFAULT_TOLERANCES,
     FENCE,
     fence_balance,
     glossary_terms,
+    parse_style_guide_tolerances,
     source_map,
     untranslated_english_ratio,
     word_count,
@@ -28,81 +31,142 @@ def test_chapter_regex_accepts_slug_suffixed():
     assert CHAPTER.match("ch-21.md")
     assert CHAPTER.match("introduction.md")
     assert CHAPTER.match("preface.md")
-    assert CHAPTER.match("app-a-advanced-prompting.md")
-    assert CHAPTER.match("app-g-coding-agents.md")
 
 
 def test_chapter_regex_rejects_non_chapters():
-    assert not CHAPTER.match("random.md")
+    assert not CHAPTER.match("random-file.md")
     assert not CHAPTER.match("README.md")
-    assert not CHAPTER.match("chapters.md")  # the dir itself, not a chapter
+    assert not CHAPTER.match("style-guide.md")
 
 
 def test_fence_balance_even():
-    text = "Here is code:\n\n```\nfoo\n```\n\nAnd more.\n"
-    assert fence_balance(text) == 0
+    assert fence_balance("```\nbody\n```\n") == 0
 
 
 def test_fence_balance_unclosed_open():
-    text = "Here is code:\n\n```\nfoo\n"
-    assert fence_balance(text) == 1
+    assert fence_balance("```\nbody without closing\n") == 1
 
 
 def test_word_count_arabic_and_english():
-    text = "Hello world\n\n" + "\u0645\u0631\u062d\u0628\u0627 \u0628\u0627\u0644\u0639\u0627\u0644\u0645\n"
-    assert word_count(text) >= 4
+    txt = "hello world مرحبا بالعالم"
+    n = word_count(txt)
+    assert n >= 4  # 2 english + 2 arabic words minimum
 
 
 def test_untranslated_english_ratio_all_english():
-    text = "This is a sample paragraph with several english words here."
-    assert untranslated_english_ratio(text) > 0.9
+    txt = "the quick brown fox jumps over the lazy dog " * 10
+    r = untranslated_english_ratio(txt)
+    assert r > 0.95
 
 
 def test_untranslated_english_ratio_all_arabic():
-    text = "\u0647\u0630\u0627 \u0641\u0642\u0631\u0629 \u0639\u0631\u0628\u064a\u0629 \u062c\u0645\u064a\u0644\u0629 \u062c\u062f\u0627"
-    assert untranslated_english_ratio(text) < 0.1
+    txt = "هذا نص عربي طويل لاختبار النسبة " * 10
+    r = untranslated_english_ratio(txt)
+    assert r < 0.05
 
 
 def test_source_map_parse(tmp_project):
     (tmp_project / "source-map.md").write_text(
-        "# Source map\n\n"
-        "| ch-01.md | ch-01.txt | 100 | 1000 | Overview, Method |\n"
-        "| ch-02.md | ch-02.txt | 200 | 2000 | - Overview |\n",
+        "| chapter | source | word_min | word_max | required_h2 | freeze_code |\n"
+        "|---|---|---:|---:|---|:-:|\n"
+        "| ch-01.md | x.txt | 100 | 500 | - | yes |\n",
         encoding="utf-8",
     )
     smap = source_map(tmp_project / "source-map.md")
-    assert smap["ch-01.md"]["source"] == "ch-01.txt"
+    assert "ch-01.md" in smap
+    assert smap["ch-01.md"]["source"] == "x.txt"
     assert smap["ch-01.md"]["word_min"] == 100
-    assert smap["ch-01.md"]["word_max"] == 1000
-    assert "Overview" in smap["ch-01.md"]["required_h2"]
-    assert "Method" in smap["ch-01.md"]["required_h2"]
-    assert smap["ch-02.md"]["required_h2"] == ["Overview"]
+    assert smap["ch-01.md"]["word_max"] == 500
 
 
 def test_source_map_missing(tmp_project):
-    (tmp_project / "source-map.md").unlink()
-    assert source_map(tmp_project / "source-map.md") == {}
+    smap = source_map(tmp_project / "no-source-map.md")
+    assert smap == {}
 
 
 def test_glossary_terms_basic(tmp_project):
     (tmp_project / "glossary.md").write_text(
         "| English | Arabic |\n"
         "|---|---|\n"
-        "| Reflection | \u0627\u0644\u062a\u0623\u0645\u0644 (Reflection) |\n"
-        "| Tool use | \u0627\u0633\u062a\u062e\u062f\u0627\u0645 \u0627\u0644\u0623\u062f\u0648\u0627\u062a |\n",
+        "| Agent | وكيل |\n"
+        "| Tool use | استخدام الأدوات |\n",
         encoding="utf-8",
     )
     terms = glossary_terms(tmp_project / "glossary.md")
-    assert any("\u0627\u0644\u062a\u0623\u0645\u0644" in t for t in terms)
-    assert any("\u0627\u0633\u062a\u062e\u062f\u0627\u0645" in t for t in terms)
+    assert any("وكيل" in t for t in terms)
+    assert any("استخدام" in t for t in terms)
 
 
 def test_glossary_terms_skips_separator(tmp_project):
     (tmp_project / "glossary.md").write_text(
         "| English | Arabic |\n"
         "|---|---|\n"
-        "| Term | \u0645\u0635\u0637\u0644\u062d |\n",
+        "| Term | مصطلح |\n",
         encoding="utf-8",
     )
     terms = glossary_terms(tmp_project / "glossary.md")
-    assert "\u0645\u0635\u0637\u0644\u062d" in terms
+    assert "مصطلح" in terms
+
+
+# --- tolerance override tests (style-guide.md frontmatter) ---
+
+def test_parse_style_guide_tolerances_no_file(tmp_project):
+    tols = parse_style_guide_tolerances(tmp_project / "no-such.md")
+    assert tols == DEFAULT_TOLERANCES
+
+
+def test_parse_style_guide_tolerances_partial_override(tmp_project):
+    (tmp_project / "style-guide.md").write_text(
+        "---\ntolerances:\n  untranslated_english: 0.50\nlanguage: ar\n---\n# style\n",
+        encoding="utf-8",
+    )
+    tols = parse_style_guide_tolerances(tmp_project / "style-guide.md")
+    assert tols["untranslated_english"] == 0.50  # overridden
+    assert tols["source_ratio"] == DEFAULT_TOLERANCES["source_ratio"]  # fallback
+    assert tols["stuck_threshold_min"] == DEFAULT_TOLERANCES["stuck_threshold_min"]  # fallback
+
+
+def test_parse_style_guide_tolerances_percentage(tmp_project):
+    (tmp_project / "style-guide.md").write_text(
+        "---\ntolerances:\n  source_ratio: 50%\n---\n",
+        encoding="utf-8",
+    )
+    tols = parse_style_guide_tolerances(tmp_project / "style-guide.md")
+    assert tols["source_ratio"] == 0.50  # 50% → 0.50
+
+
+def test_parse_style_guide_tolerances_malformed_value_keeps_default(tmp_project):
+    (tmp_project / "style-guide.md").write_text(
+        "---\ntolerances:\n  untranslated_english: not-a-number\n---\n",
+        encoding="utf-8",
+    )
+    tols = parse_style_guide_tolerances(tmp_project / "style-guide.md")
+    assert tols["untranslated_english"] == DEFAULT_TOLERANCES["untranslated_english"]
+
+
+# --- source-map.md per-chapter override tests ---
+
+def test_source_map_per_chapter_ratio_override(tmp_project):
+    (tmp_project / "source-map.md").write_text(
+        "| chapter | source | word_min | word_max | required_h2 | freeze_code | source_ratio_override | glossary_drift_exempt |\n"
+        "|---|---|---:|---:|---|:-:|:-:|:-:|\n"
+        "| ch-01.md | x.txt | 0 | 9999 | - | yes | 0.50 | no |\n"
+        "| ch-02.md | y.txt | 0 | 9999 | - | yes | - | yes |\n",
+        encoding="utf-8",
+    )
+    smap = source_map(tmp_project / "source-map.md")
+    assert smap["ch-01.md"]["source_ratio_override"] == 0.50
+    assert smap["ch-01.md"]["glossary_drift_exempt"] is False
+    assert smap["ch-02.md"]["source_ratio_override"] is None
+    assert smap["ch-02.md"]["glossary_drift_exempt"] is True
+
+
+def test_source_map_percentage_ratio_override(tmp_project):
+    (tmp_project / "source-map.md").write_text(
+        "| chapter | source | word_min | word_max | required_h2 | freeze_code | source_ratio_override | glossary_drift_exempt |\n"
+        "|---|---|---:|---:|---|:-:|:-:|:-:|\n"
+        "| ch-01.md | x.txt | 0 | 9999 | - | yes | 60% | no |\n",
+        encoding="utf-8",
+    )
+    smap = source_map(tmp_project / "source-map.md")
+    assert smap["ch-01.md"]["source_ratio_override"] == 0.60

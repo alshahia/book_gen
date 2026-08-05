@@ -14,7 +14,7 @@ repo, with two-pass `book-reviewer` for translations.
 
 ```sh
 # 1. Unzip into your project (any folder on any OS)
-unzip book-kit-1.0.0.zip -d my-book-project
+unzip book-kit-1.1.0.zip -d my-book-project
 cd my-book-project
 
 # 2. Install (Python 3.8+, stdlib only — no pip, no npm)
@@ -48,9 +48,9 @@ The installer is idempotent, dry-run-able (`--check-only`), and reversable
 | `opencode.jsonc` | Minimal agent roster: master + 5 specialists |
 | `CLAUDE.md` | Project orientation for OpenCode sessions |
 | `agents_manager/` | 8 engine skills: orchestrator, writer, reviewer (translation-mode), master, 5 specialists |
-| `book_workflow/book-agents/templates/` | 18 book-phase templates + 1 JSON schema (intake, outline, source-map, etc.) |
-| `book_workflow/scripts/` | 7 stdlib-only tools: `book_check.py`, `bilingual_smoke.py`, `split_source.py`, `extract_figures.py`, `build_exports.py`, `poll_progress.py`, `fix_source_urls.py` |
-| `book_workflow/tests/` | 63 pytest tests covering all 7 scripts |
+| `book_workflow/book-agents/templates/` | 19 book-phase templates + 2 JSON schemas (intake, outline, source-map, .translate-progress, etc.) |
+| `book_workflow/scripts/` | 8 stdlib-only tools: `book_check.py`, `bilingual_smoke.py`, `split_source.py`, `extract_figures.py`, `build_exports.py`, `poll_progress.py`, `fix_source_urls.py`, `md2pdf.py` |
+| `book_workflow/tests/` | 77 pytest tests covering all 8 scripts |
 | `pytest.ini` | pytest config |
 | `books/` | Workspace seed — your manuscripts live here |
 | `share/` | Inter-agent communication (`notes/`, `handoffs/`, `reports/`) |

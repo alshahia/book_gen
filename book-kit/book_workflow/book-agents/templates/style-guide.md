@@ -39,12 +39,29 @@ Status: DRAFT | CONFIRMED
 
 - `chapters/ch-NN.md:LINENUM` — [why this line is frozen]
 
+## Tolerances (v1.1.0+)
+
+`book_check.py` reads these YAML-frontmatter values at runtime. Missing
+keys fall back to the script defaults shown below. Per-chapter overrides
+live in `source-map.md` (columns `source_ratio_override` and
+`glossary_drift_exempt`).
+
+```yaml
 ---
+tolerances:
+  untranslated_english: 0.30   # <30% latin words outside code fences
+  source_ratio: 0.40            # target word count within ±40% of source word count
+  stuck_threshold_min: 30       # flag chapters updated > N min ago with status in_progress
+---
+```
+
+---
+
 Confirmation: user must confirm this guide before Phase 5 (writing plan) begins.
 
 ## Mechanical gates
 
-- **`book_check.py` — Phase 6, every chapter completion:** consumes `## Word-count windows`, `## Forbidden patterns`, and `## Frozen lines`, then cross-checks the `frozen-lines.json` manifest. T1 is the primary consumer gate.
+- **`book_check.py` — Phase 6, every chapter completion:** consumes `## Word-count windows`, `## Forbidden patterns`, and `## Frozen lines`, then cross-checks the `frozen-lines.json` manifest. Reads tolerances from the YAML frontmatter of THIS file (v1.1.0+). T1 is the primary consumer gate.
 - **`build_exports.py` — Phase 5 export gate:** invokes `book_check.py` before assembling exports, so it indirectly enforces this guide.
 - **`strip_publish_annotations.py` — no direct read:** clean-export stripping does not consume `style-guide.md`.
 - The orchestrator runs T1 at every chapter completion through the book-writer skill.
@@ -54,3 +71,4 @@ Confirmation: user must confirm this guide before Phase 5 (writing plan) begins.
 1. Are word-count windows global defaults, or should every chapter have an explicit numeric row?
 2. Which forbidden patterns are content rules versus temporary drafting markers?
 3. Who can authorize a frozen-line change after the manifest is generated?
+4. When should a chapter declare `glossary_drift_exempt: yes` vs. just include the missing term naturally in the prose?

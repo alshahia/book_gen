@@ -11,11 +11,11 @@ consumers: [book_check.py, book-writer, am-review, master]
 
 ## Bindings
 
-| chapter | source | word_min | word_max | required_h2 | freeze_code |
-|---|---|---:|---:|---|:-:|
-| `ch-NN-<slug>.md` | `source/ch-NN.txt` | [min] | [max] | [comma-list, optional] | yes |
-| `introduction.md` | `source/introduction.txt` | [min] | [max] | [comma-list, optional] | yes |
-| `app-X-<slug>.md` | `source/app-X.txt` | [min] | [max] | [comma-list, optional] | yes |
+| chapter | source | word_min | word_max | required_h2 | freeze_code | source_ratio_override | glossary_drift_exempt |
+|---|---|---:|---:|---|:-:|:-:|:-:|
+| `ch-NN-<slug>.md` | `source/ch-NN.txt` | [min] | [max] | [comma-list, optional] | yes | - | no |
+| `introduction.md` | `source/introduction.txt` | [min] | [max] | [comma-list, optional] | yes | - | no |
+| `app-X-<slug>.md` | `source/app-X.txt` | [min] | [max] | [comma-list, optional] | yes | - | no |
 
 Columns:
 
@@ -24,6 +24,8 @@ Columns:
 - **word_min / word_max** — operational word-count envelope for the translation. `book_check.py` flags out-of-window chapters.
 - **required_h2** — comma-separated H2 titles that MUST appear in the target. `book_check.py` flags missing sections (catches mid-write truncation).
 - **freeze_code** — if `yes`, fenced code blocks must be byte-identical to the source's code blocks (after stripping comments and re-flowing whitespace). `book_check.py` verifies by sha256 of the normalized code-block bodies.
+- **source_ratio_override** *(optional, v1.1.0+)* — per-chapter override on the global `source_ratio` tolerance from `style-guide.md` frontmatter. Accepts a fraction (e.g. `0.50`) or percentage (e.g. `50%`). Use `-` (or omit) to inherit the global tolerance.
+- **glossary_drift_exempt** *(optional, v1.1.0+)* — `yes` skips the glossary-drift check for this chapter. Use sparingly: only when a chapter legitimately doesn't reference a high-usage glossary term (e.g. intro/overview chapters, agent-to-agent communication).
 
 ## Generation rule
 

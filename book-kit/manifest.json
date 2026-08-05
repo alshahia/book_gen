@@ -1,6 +1,6 @@
 {
   "name": "book-kit",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "min_python": "3.8",
   "engine_files": [
     {
@@ -16,7 +16,7 @@
     {
       "path": "VERSION",
       "engine_owned": true,
-      "sha256": "c1d1c500684bcfe544616ce0d5e45e85629f95c60ba2a54d2e46d578099623da"
+      "sha256": "1575e1af4a95f12f70b4ee6a6adce8160953d93ea17dc2611b90883ccc3ad3b8"
     },
     {
       "path": ".gitattributes",
@@ -31,12 +31,12 @@
     {
       "path": "manifest.json",
       "engine_owned": true,
-      "sha256": "659b88f3736c65b50b12cf60eb86d0c107f30cfdc11449ad5ec6694ee7abc75d"
+      "sha256": "27e081f2633f0e68994f1a71585cd4138f09a98b32fdf855ae88f922bcaff5bd"
     },
     {
       "path": "README.md",
       "engine_owned": true,
-      "sha256": "3d5021a9ab3a2f6643d0f8c4834c83af9813f41f846e053ee8371bc4995a1b6d"
+      "sha256": "e17b6018f38e1cf0aa4d9b0b5036b1b0a7db32844e228b774b08eb585f9ebec3"
     },
     {
       "path": "CONTRIBUTING.md",
@@ -66,7 +66,7 @@
     {
       "path": "scripts/build_manifest.py",
       "engine_owned": true,
-      "sha256": "b8534e51210cfc6bdc4e6cb8c36cc5e36064e52ec2f3d650a19d5974377f5cfb"
+      "sha256": "d62fa80227c35fbaecd0e339143d1580469e574b306ae89324bbd4a627be5f83"
     },
     {
       "path": "scripts/build_zip.py",
@@ -129,14 +129,9 @@
       "sha256": "975a2d02d8a57c8f2bd21ff1b3fa89f8a8560cac580ab2d63421c0a1a32766bb"
     },
     {
-      "path": "book_workflow/scripts/fix_source_urls.py",
-      "engine_owned": true,
-      "sha256": "2b9c005fc319c21f26ad512f4339ffcb6c1e82fceb86bd703054e3c1eb73fc33"
-    },
-    {
       "path": "book_workflow/scripts/book_check.py",
       "engine_owned": true,
-      "sha256": "b108698b8d30627fc91d832aa1550d5ae998d64698c9f577caf5146e0c8841bc"
+      "sha256": "ac46ba90d6065789f621296a11f33c3614440ecb13b76a67a35a3df0756cbccc"
     },
     {
       "path": "book_workflow/scripts/build_exports.py",
@@ -147,6 +142,16 @@
       "path": "book_workflow/scripts/extract_figures.py",
       "engine_owned": true,
       "sha256": "d84773709cb784cab43ce449206023c64534487105dd39921d8767cae0a406fb"
+    },
+    {
+      "path": "book_workflow/scripts/fix_source_urls.py",
+      "engine_owned": true,
+      "sha256": "2b9c005fc319c21f26ad512f4339ffcb6c1e82fceb86bd703054e3c1eb73fc33"
+    },
+    {
+      "path": "book_workflow/scripts/md2pdf.py",
+      "engine_owned": true,
+      "sha256": "9f6c1152d06b8c11a00ce3fb8391c73e40b8595af33bd2fd399a870e42891d19"
     },
     {
       "path": "book_workflow/scripts/poll_progress.py",
@@ -241,12 +246,12 @@
     {
       "path": "book_workflow/book-agents/templates/source-map.md",
       "engine_owned": true,
-      "sha256": "3756af47405250677bc4ec0295bc17bb682644e9e566062f146770eddba8c2ba"
+      "sha256": "692500c1bbbbb7975bfdcf1853ba8a51597366ee7389d2040256ef351a2e878a"
     },
     {
       "path": "book_workflow/book-agents/templates/style-guide.md",
       "engine_owned": true,
-      "sha256": "3ec8b991985d5ed20fc6c88e2bb9d6db7f8b33636a3ae5cdbcff3638754c3193"
+      "sha256": "e1a4b1673025a176ab976f1a2bed8a7349047e08c5adb05e532300f40070981e"
     },
     {
       "path": "book_workflow/book-agents/templates/tashkeel-policy.md",
@@ -296,7 +301,7 @@
     {
       "path": "docs/SCRIPTS.md",
       "engine_owned": true,
-      "sha256": "bf1838e42aa931f68889e64c087387c65f2201bf3b079897aed3806b1bfd0aae"
+      "sha256": "1fe9e3d223662e56b08cfc68a95abae9f7449ad035e563c7cfc61a09d9fbc93a"
     },
     {
       "path": "pytest.ini",
@@ -309,29 +314,19 @@
       "sha256": "5bac3a68099e014dbd27915ce521b6401ef3241473fd686dbef5081ccd7e19e7"
     },
     {
-      "path": "tests/test_fix_source_urls.py",
+      "path": "tests/conftest.py",
       "engine_owned": true,
-      "sha256": "9f1953c6f736247a9aeb8bcfaeb52f73ce15b09e7bde4b756f9b39a0e030cdc7"
+      "sha256": "5bac3a68099e014dbd27915ce521b6401ef3241473fd686dbef5081ccd7e19e7"
+    },
+    {
+      "path": "tests/test_bilingual_smoke.py",
+      "engine_owned": true,
+      "sha256": "cefb9958aedc00798c38d6ca1b85fe4d759832ad90ec3340f8c144b1871ee24d"
     },
     {
       "path": "tests/test_book_check.py",
       "engine_owned": true,
-      "sha256": "f770315f46181a9110dbd43294cf2818f39b9b065c700af2149f2e25b737a0ad"
-    },
-    {
-      "path": "tests/test_split_source.py",
-      "engine_owned": true,
-      "sha256": "7255f98d2cdb8db83a2399b4d7ebd2cb3a3bfc2001fa3258aef4694b7e52dbf7"
-    },
-    {
-      "path": "tests/test_extract_figures.py",
-      "engine_owned": true,
-      "sha256": "9a2a867366f65f02d2b1fbd2f72a7bce6035ed2abfdcff23411c3492a3a9da81"
-    },
-    {
-      "path": "tests/test_poll_progress.py",
-      "engine_owned": true,
-      "sha256": "9327bf8862605a7648e6dc72f5e8f06353acead5dc13e98c6370e8e75d1313e0"
+      "sha256": "d9c5864a5ff1f2e6f9a35b7092944847d534207e3491220c9c804af0a188a1a8"
     },
     {
       "path": "tests/test_build_exports.py",
@@ -339,9 +334,29 @@
       "sha256": "ce889bd64732e6c73f924223a4dddf05e350cc0cc654dfc8617f5a9335bcc9b4"
     },
     {
-      "path": "tests/test_bilingual_smoke.py",
+      "path": "tests/test_extract_figures.py",
       "engine_owned": true,
-      "sha256": "cefb9958aedc00798c38d6ca1b85fe4d759832ad90ec3340f8c144b1871ee24d"
+      "sha256": "9a2a867366f65f02d2b1fbd2f72a7bce6035ed2abfdcff23411c3492a3a9da81"
+    },
+    {
+      "path": "tests/test_fix_source_urls.py",
+      "engine_owned": true,
+      "sha256": "9f1953c6f736247a9aeb8bcfaeb52f73ce15b09e7bde4b756f9b39a0e030cdc7"
+    },
+    {
+      "path": "tests/test_md2pdf.py",
+      "engine_owned": true,
+      "sha256": "86bda84cf5a71337dfed350d37c2571d372fdebb023aa11d0b0ffd6c868a0811"
+    },
+    {
+      "path": "tests/test_poll_progress.py",
+      "engine_owned": true,
+      "sha256": "9327bf8862605a7648e6dc72f5e8f06353acead5dc13e98c6370e8e75d1313e0"
+    },
+    {
+      "path": "tests/test_split_source.py",
+      "engine_owned": true,
+      "sha256": "7255f98d2cdb8db83a2399b4d7ebd2cb3a3bfc2001fa3258aef4694b7e52dbf7"
     }
   ],
   "user_files": [

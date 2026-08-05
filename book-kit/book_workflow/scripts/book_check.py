@@ -7,8 +7,8 @@ import sys
 import unicodedata
 
 FENCE = re.compile(r"```.*?```", re.DOTALL)
-# ponytail: accept slug-suffixed names (ch-01-prompt-chaining.md) AND plain names (ch-01.md) AND non-chapter files (introduction.md, app-a-...md).
-CHAPTER = re.compile(r"^(ch-\d{1,3}(?:[-_.][\w-]+)?|introduction|preface|app-[a-z](?:[-_.][\w-]+)?)\.md$", re.I)
+# ponytail: accept slug-suffixed names (ch-01-prompt-chaining.md) AND plain names (ch-01.md) AND non-chapter files (introduction.md, app-a-...md) AND letter-suffixed names (ch-a.md, ch-b.md used in tests).
+CHAPTER = re.compile(r"^(ch-(?:\d{1,3}|[a-z])(?:[-_.][\w-]+)?|introduction|preface|app-[a-z](?:[-_.][\w-]+)?)\.md$", re.I)
 
 def read_md(path):
     try:
@@ -46,25 +46,100 @@ def policy(path):
     return {ch: (float(t.rstrip('%')) / (100 if '%' in t else 1), float(tol.rstrip('%')) / (100 if '%' in tol else 1)) for ch,t,tol in re.findall(r"\|\s*(ch-\d+)\s*\|\s*([\d.]+%?)\s*\|\s*([\d.]+%?)\s*\|", m.group(1) if m else "")}
 
 def source_map(path):
-    """Parse source-map.md: chapter | source | word_min | word_max | required_h2.
+    """Parse source-map.md: chapter | source | word_min | word_max | required_h2 | freeze_code |
+    source_ratio_override | glossary_drift_exempt.
 
     Returns dict keyed by chapter filename (no path). Fields are optional per row.
+    `source_ratio_override` (e.g. `0.50`) and `glossary_drift_exempt` (`yes`/`no`)
+    are honored by the per-chapter checks; absent = use the project-global tolerance.
     """
     if not path.exists(): return {}
-    text = read_md(path)
-    rows = re.findall(
-        r"\|\s*([\w.\-]+\.md)\s*\|\s*([^\s|][^|]*?)\s*\|\s*(\d+)\s*\|\s*(\d+)\s*\|"
-        r"(?:\s*([^|]+?)\s*\|)?",
-        text
-    )
     out = {}
-    for ch, src, lo, hi, h2 in rows:
-        out[ch] = {
-            "source": src.strip(),
-            "word_min": int(lo),
-            "word_max": int(hi),
-            "required_h2": [s.strip().lstrip("-").strip() for s in (h2 or "").split(",") if s.strip()],
+    for line in read_md(path).splitlines():
+        if not line.lstrip().startswith("|"):
+            continue
+        cells = [c.strip() for c in line.strip().strip("|").split("|")]
+        if len(cells) < 2 or not cells[0].endswith(".md"):
+            continue
+        # skip header / separator rows
+        if all(set(c) <= set("-: ") for c in cells):
+            continue
+        if cells[0].lower() == "chapter":
+            continue
+        # cells[1] could be source filename or '-'
+        if len(cells) < 4:
+            continue
+        try:
+            lo, hi = int(cells[2]), int(cells[3])
+        except ValueError:
+            continue
+        h2_cell = cells[4] if len(cells) > 4 else ""
+        freeze = cells[5].lower() if len(cells) > 5 else ""
+        ratio_raw = cells[6].strip() if len(cells) > 6 else ""
+        exempt_raw = cells[7].strip().lower() if len(cells) > 7 else ""
+        try:
+            ratio_val = float(ratio_raw.rstrip('%')) / (100 if '%' in ratio_raw else 1) if ratio_raw and ratio_raw != "-" else None
+        except ValueError:
+            ratio_val = None
+        out[cells[0]] = {
+            "source": cells[1].strip() if cells[1].strip() != "-" else "",
+            "word_min": lo,
+            "word_max": hi,
+            "required_h2": [s.strip().lstrip("-").strip() for s in h2_cell.split(",") if s.strip() and s.strip() != "-"],
+            "source_ratio_override": ratio_val,
+            "glossary_drift_exempt": exempt_raw in ("yes", "true"),
         }
+    return out
+
+
+# Defaults — overridable via style-guide.md frontmatter `tolerances:` block.
+DEFAULT_TOLERANCES = {
+    "untranslated_english": 0.30,   # <30% latin words outside code fences
+    "source_ratio": 0.40,            # target word count within ±40% of source word count
+    "stuck_threshold_min": 30,       # flag chapters updated > N min ago with status in_progress
+}
+
+
+def parse_style_guide_tolerances(path):
+    """Read YAML frontmatter `tolerances:` block from style-guide.md.
+
+    Returns a dict merged over DEFAULT_TOLERANCES. Missing keys keep defaults.
+    Malformed values fall back to defaults. Unknown keys are ignored.
+    """
+    if not path.exists():
+        return dict(DEFAULT_TOLERANCES)
+    text = read_md(path)
+    if not text.startswith("---"):
+        return dict(DEFAULT_TOLERANCES)
+    end = text.find("\n---", 3)
+    if end < 0:
+        return dict(DEFAULT_TOLERANCES)
+    block = text[3:end].strip()
+    out = dict(DEFAULT_TOLERANCES)
+    in_tolerances = False
+    for raw in block.splitlines():
+        line = raw.rstrip()
+        if not line.strip() or line.lstrip().startswith("#"):
+            continue
+        if line.startswith("tolerances:"):
+            in_tolerances = True
+            continue
+        if in_tolerances:
+            if not line.startswith((" ", "\t")):
+                # left tolerances section
+                in_tolerances = False
+                continue
+            m = re.match(r"^\s+([A-Za-z_]+):\s*(.+?)\s*$", line)
+            if not m:
+                continue
+            key, raw_val = m.group(1), m.group(2).strip()
+            if key not in DEFAULT_TOLERANCES:
+                continue
+            try:
+                v = float(raw_val.rstrip('%')) / (100 if '%' in raw_val else 1)
+                out[key] = v
+            except ValueError:
+                pass  # fall back to default for this key
     return out
 
 def glossary_terms(path):
@@ -122,9 +197,11 @@ def main(argv=None):
         try: frozen_json = json.loads(fp.read_text(encoding="utf-8")).get("chapters", {})
         except (OSError, ValueError) as e: print(f"warning: invalid frozen-lines.json: {e}", file=sys.stderr)
 
-    # Tolerances for v0.2.0-alpha smoke run — make these configurable via source-map.md later.
-    UNTRANSLATED_TOLERANCE = 0.30  # <30% latin words outside code fences
-    SOURCE_RATIO_TOLERANCE = 0.40  # target word count within ±40% of source word count
+    # Tolerances: read from style-guide.md frontmatter `tolerances:` block.
+    # Missing keys fall back to DEFAULT_TOLERANCES (see top of file).
+    tolerances = parse_style_guide_tolerances(root / "style-guide.md")
+    UNTRANSLATED_TOLERANCE = tolerances["untranslated_english"]
+    SOURCE_RATIO_TOLERANCE = tolerances["source_ratio"]
 
     result, failed, summary = {}, False, {}
     for file in sorted(chapters.glob("*.md")):
@@ -171,13 +248,18 @@ def main(argv=None):
         # 3) source word-count parity
         src_row = smap.get(file.name) or smap.get(stem + ".md")
         src_ratio = None
+        ratio_tol_used = SOURCE_RATIO_TOLERANCE  # report which tolerance was applied
         if src_row and src_row.get("source"):
             src_path = root / "source" / src_row["source"]
             if src_path.exists():
                 src_words = word_count(read_md(src_path))
                 src_ratio = words / src_words if src_words else None
-                lo = 1.0 - SOURCE_RATIO_TOLERANCE
-                hi = 1.0 + SOURCE_RATIO_TOLERANCE
+                # per-chapter override on tolerance takes precedence over the global
+                override = src_row.get("source_ratio_override")
+                tol = override if isinstance(override, (int, float)) and override > 0 else SOURCE_RATIO_TOLERANCE
+                ratio_tol_used = tol
+                lo = 1.0 - tol
+                hi = 1.0 + tol
                 if src_ratio is not None and not (lo <= src_ratio <= hi):
                     failed = True
 
@@ -197,6 +279,7 @@ def main(argv=None):
             "fence_balance": fence_err,  # 0 = balanced
             "missing_h2": missing_h2,
             "source_ratio": src_ratio,
+            "source_ratio_tolerance": ratio_tol_used,
             "untranslated_ratio": round(untrans, 3),
         }
 
@@ -211,15 +294,28 @@ def main(argv=None):
         n_chapters = len(chapter_usage)
         for fname, info in result.items():
             drifts = []
+            # per-chapter exemption: source-map.md row `glossary_drift_exempt: yes`
+            exempt = smap.get(fname, {}).get("glossary_drift_exempt", False)
             for term, n_use in term_usage.items():
                 if n_use / n_chapters >= 0.80 and not chapter_usage[fname][term]:
                     drifts.append(term)
-            if drifts: failed = True
+            if drifts and not exempt: failed = True
             info["glossary_drift"] = drifts
+            info["glossary_drift_exempt"] = exempt
 
     # ---- summary ----
+    def _ratio_out_of_band(fname, v):
+        if v["source_ratio"] is None:
+            return False
+        tol = smap.get(fname, {}).get("source_ratio_override") or SOURCE_RATIO_TOLERANCE
+        return v["source_ratio"] < (1 - tol) or v["source_ratio"] > (1 + tol)
+
     summary = {
         "chapters_checked": len(result),
+        "tolerances_used": {
+            "untranslated_english": UNTRANSLATED_TOLERANCE,
+            "source_ratio": SOURCE_RATIO_TOLERANCE,
+        },
         "checks": {
             "frozen_lines": sum(1 for v in result.values() if not v["frozen_intact"]),
             "forbidden_patterns": sum(1 for v in result.values() if v["forbidden_matches"]),
@@ -227,9 +323,9 @@ def main(argv=None):
             "tashkeel": sum(1 for v in result.values() if v["tashkeel_ratio"] is not None and (v["tashkeel_ratio"] < 0 or True)),  # placeholder
             "fence_balance": sum(1 for v in result.values() if v["fence_balance"] != 0),
             "missing_h2": sum(1 for v in result.values() if v["missing_h2"]),
-            "source_ratio": sum(1 for v in result.values() if v["source_ratio"] is not None and (v["source_ratio"] < (1-SOURCE_RATIO_TOLERANCE) or v["source_ratio"] > (1+SOURCE_RATIO_TOLERANCE))),
+            "source_ratio": sum(1 for f, v in result.items() if _ratio_out_of_band(f, v)),
             "untranslated_english": sum(1 for v in result.values() if v["untranslated_ratio"] > UNTRANSLATED_TOLERANCE),
-            "glossary_drift": sum(1 for v in result.values() if v.get("glossary_drift")),
+            "glossary_drift": sum(1 for v in result.values() if v.get("glossary_drift") and not v.get("glossary_drift_exempt")),
         },
     }
 
@@ -289,6 +385,62 @@ if __name__ == "__main__":
             print(f"self-check exit={rc}", file=sys.stderr)
             assert rc == 1, "expected FAIL (fence + word-window violation)"
             assert (root / "chapters" / "ch-01-slug.md").exists() or True
+        # self-check #2: style-guide frontmatter tolerance override
+        with tempfile.TemporaryDirectory() as td2:
+            r2 = Path(td2)
+            (r2 / "chapters").mkdir()
+            (r2 / "chapters" / "ch-01.md").write_text("# T\n\nنص عربي قصير\n", encoding="utf-8")
+            (r2 / "style-guide.md").write_text("---\ntolerances:\n  untranslated_english: 0.99\n---\n\n# style\n", encoding="utf-8")
+            tols = parse_style_guide_tolerances(r2 / "style-guide.md")
+            assert tols["untranslated_english"] == 0.99, f"override not applied: {tols}"
+            assert tols["source_ratio"] == 0.40, f"missing key fell back wrong: {tols}"
+        # self-check #3: per-chapter source_ratio_override from source-map.md
+        with tempfile.TemporaryDirectory() as td3:
+            r3 = Path(td3)
+            (r3 / "chapters").mkdir()
+            (r3 / "chapters" / "ch-short.md").write_text("# T\n\n" + ("كلمة " * 50) + "\n", encoding="utf-8")
+            (r3 / "source").mkdir()
+            (r3 / "source" / "x.txt").write_text("src " * 200, encoding="utf-8")
+            (r3 / "source-map.md").write_text(
+                "| ch-short.md | x.txt | 0 | 9999 | - | yes | 0.60 | no |\n", encoding="utf-8"
+            )
+            smap = source_map(r3 / "source-map.md")
+            assert smap["ch-short.md"]["source_ratio_override"] == 0.60, f"override missed: {smap}"
+            assert smap["ch-short.md"]["glossary_drift_exempt"] is False
+        # self-check #4: per-chapter glossary_drift_exempt
+        # 5 chapters: 4 use the term, 1 doesn't. Of those 4 users, 1 is exempt.
+        with tempfile.TemporaryDirectory() as td4:
+            r4 = Path(td4)
+            (r4 / "chapters").mkdir()
+            (r4 / "chapters" / "ch-a.md").write_text("# T\n\nالنص الأول مع المصطلحالفريد هنا\n", encoding="utf-8")
+            (r4 / "chapters" / "ch-b.md").write_text("# T\n\nالنص الثاني مع المصطلحالفريد هنا\n", encoding="utf-8")
+            (r4 / "chapters" / "ch-c.md").write_text("# T\n\nالنص الثالث مع المصطلحالفريد هنا\n", encoding="utf-8")
+            (r4 / "chapters" / "ch-d.md").write_text("# T\n\nالنص الرابع مع المصطلحالفريد هنا\n", encoding="utf-8")
+            (r4 / "chapters" / "ch-e.md").write_text("# T\n\nالنص الخامس بلا مصطلح فريد\n", encoding="utf-8")
+            (r4 / "glossary.md").write_text(
+                "| english | arabic |\n|---|---|\n| Unique Term | المصطلحالفريد |\n",
+                encoding="utf-8",
+            )
+            (r4 / "source-map.md").write_text(
+                "| ch-a.md | - | 0 | 999 | - | yes | - | no |\n"
+                "| ch-b.md | - | 0 | 999 | - | yes | - | yes |\n"
+                "| ch-c.md | - | 0 | 999 | - | yes | - | no |\n"
+                "| ch-d.md | - | 0 | 999 | - | yes | - | no |\n"
+                "| ch-e.md | - | 0 | 999 | - | yes | - | no |\n",
+                encoding="utf-8",
+            )
+            import io, contextlib
+            buf = io.StringIO()
+            with contextlib.redirect_stdout(buf):
+                ec = main([str(r4)])
+            data = json.loads(buf.getvalue())
+            # 4/5 chapters (80%) use المصطلحالفريد — ch-e drifts.
+            # ch-a uses the term so does not drift.
+            # ch-b uses the term but is exempt — does not drift either.
+            assert data["summary"]["checks"]["glossary_drift"] == 1, f"only ch-e should drift; got {data['summary']['checks']['glossary_drift']}"
+            assert data["chapters"]["ch-a.md"].get("glossary_drift_exempt") is False
+            assert data["chapters"]["ch-b.md"].get("glossary_drift_exempt") is True
+            assert data["chapters"]["ch-e.md"].get("glossary_drift") == ["المصطلحالفريد"]
         print("self-check OK")
         sys.exit(0)
     sys.exit(main(sys.argv[1:]))

@@ -57,6 +57,12 @@ ENGINE_FILES = [
     "docs/ARCHITECTURE.md",
     "docs/TROUBLESHOOTING.md",
     "docs/UPGRADE.md",
+    "docs/WORKFLOW.md",
+    "docs/TRANSLATION_MODE.md",
+    "docs/SCRIPTS.md",
+    "pytest.ini",
+    "tests/conftest.py",
+    "tests/*.py",
 ]
 
 # User-owned files: installer preserves with .userbak suffix if hash differs.

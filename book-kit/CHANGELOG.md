@@ -3,8 +3,61 @@
 All notable changes to the Book Kit. Newest on top.
 
 The Book Kit is the portable book-gen deliverable in this repo. It bundles
-the agents-manager controller + book-gen specialization + 7 scripts + 18
+the agents-manager controller + book-gen specialization + 8 scripts + 19
 templates + tests + docs. Native books AND translations ship first-class.
+
+## v1.1.0 — smoke debt cleared + tolerances configurable (2026-08-05)
+
+The 5 v0.2.0 smoke findings that lingered are now closed: hardcoded
+tolerances moved to `style-guide.md` frontmatter, per-chapter overrides
+landed in `source-map.md`, and `md2pdf.py` is promoted to the kit.
+`book_check.py` against the 29-chapter Arabic translation project now
+returns 0 failures.
+
+### What's new
+
+1. **`md2pdf.py` promoted to kit** — was project-local at
+   `E:\books_gen\Agentic Design Patterns...\scripts\md2pdf.py`. Now in
+   `book-kit/book_workflow/scripts/`. Converts Arabic Markdown to RTL
+   PDF via Chrome/Edge headless, with optional `--figures-manifest` to
+   embed extracted figures before italic `> **الشكل N:**` placeholders.
+   Idempotent + self-check + 8 pytest tests.
+2. **`book_check.py` reads tolerances from `style-guide.md` frontmatter** —
+   `untranslated_english`, `source_ratio`, `stuck_threshold_min` move
+   out of hardcoded constants. Missing keys fall back to defaults.
+   The YAML-frontmatter parser is minimal (no PyYAML dependency).
+3. **Per-chapter overrides in `source-map.md`** — two new columns:
+   `source_ratio_override` (e.g. `0.50`) and `glossary_drift_exempt`
+   (`yes`/`no`). The kit's `source-map.md` template now ships with
+   these columns, and `book_check.py` honors them. The Arabic
+   translation project uses them for ch-05/ch-20 (lower source-ratio
+   band) and intro/ch-15/app-b (exempt from glossary drift).
+4. **6 new pytest tests for the new behavior** — tolerance parsing
+   (4 tests covering no-file, partial override, percentage, malformed
+   value) and source-map parsing (2 tests for ratio override + exempt
+   columns). Total pytest count: **77** (was 63).
+5. **`docs/SCRIPTS.md` documents `md2pdf.py`** — new section with
+   usage, flags, behavior, requirements. Updated test count and script
+   count (8 scripts).
+6. **`build_manifest.py` allowlist updated** — `tests/*.py`,
+   `pytest.ini`, `docs/WORKFLOW.md`, `docs/TRANSLATION_MODE.md`,
+   `docs/SCRIPTS.md` now in the engine-files list. Total engine files
+   tracked: 71.
+
+### Reference implementation
+
+The `agentic-design-patterns-ar` translation project now has 0
+failures from `book_check.py` and 0 missing URLs from
+`bilingual_smoke.py`. See its updated `exports/SMOKE_REPORT.md` for
+the per-chapter override rationale and the v0.3.0 → v1.1.0 resolution
+table.
+
+### What's still open
+
+- `bin/promote.py` + `.book-kit/overrides/` — explicit script
+  promotion mechanism. Deferred to v1.2.0.
+- 10 known complex pdftotext URL corruptions documented in
+  `fix_source_urls.py` but not auto-fixed (manual review per project).
 
 ## v1.0.0 — book-gen deliverable (2026-08-05)
 
