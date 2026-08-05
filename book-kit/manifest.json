@@ -1,6 +1,6 @@
 {
   "name": "book-kit",
-  "version": "0.1.0",
+  "version": "0.22.0",
   "min_python": "3.8",
   "engine_files": [
     {
@@ -11,12 +11,12 @@
     {
       "path": "CLAUDE.md",
       "engine_owned": true,
-      "sha256": "4b5636b61847e43c1617529cfef5f9382aefec8835be29fb56654bea78b67e94"
+      "sha256": "506fdc1bf5818fe82c4848f7148f78d7ef318ebe0858b9b344ce2c083348dfaf"
     },
     {
       "path": "VERSION",
       "engine_owned": true,
-      "sha256": "6ad9613a455798d6d92e5f5f390ab4baa70596bc869ed6b17f5cdd2b28635f06"
+      "sha256": "c1d1c500684bcfe544616ce0d5e45e85629f95c60ba2a54d2e46d578099623da"
     },
     {
       "path": ".gitattributes",
@@ -31,7 +31,17 @@
     {
       "path": "manifest.json",
       "engine_owned": true,
-      "sha256": "4a5fb2861376d9647e32b71f1cf9eb3dfe6b4006302470d02cfcecf18a3ab3f4"
+      "sha256": "659b88f3736c65b50b12cf60eb86d0c107f30cfdc11449ad5ec6694ee7abc75d"
+    },
+    {
+      "path": "README.md",
+      "engine_owned": true,
+      "sha256": "ffe64342c45dfb1c6fb0f5e06053bed722cbe157fb7c5a917caa2d6e6681a673"
+    },
+    {
+      "path": "CONTRIBUTING.md",
+      "engine_owned": true,
+      "sha256": "71ab7cf04993b246fdbbf1c938494ff06245ada15f5075ca37ca2590b515ef1f"
     },
     {
       "path": "bin/book-kit",
@@ -56,7 +66,7 @@
     {
       "path": "scripts/build_manifest.py",
       "engine_owned": true,
-      "sha256": "13ecfd93ae171f0de604f9317cbb28ace5e13fad260ce91c4619766b08890384"
+      "sha256": "b8534e51210cfc6bdc4e6cb8c36cc5e36064e52ec2f3d650a19d5974377f5cfb"
     },
     {
       "path": "scripts/build_zip.py",
@@ -76,12 +86,17 @@
     {
       "path": "agents_manager/book-gen-orchestrator/SKILL.md",
       "engine_owned": true,
-      "sha256": "8caa91db3d71d0b7da5922fd82a37b30d8bc563f394c124ce79b02f7dc3ad7dd"
+      "sha256": "a915cb36e760f62676e37e5e25f2142b5be9b4cfd534f2a52890c8ed47e1b915"
     },
     {
       "path": "agents_manager/book-writer/SKILL.md",
       "engine_owned": true,
-      "sha256": "85c789ef017bdfbe321ff08f929aeb5b8dfc83c33022b879cb42b704ee88d214"
+      "sha256": "4f9c67c90d741d426e55c486c5d4240cf1d15c71418ef391b786af6b66e98e0c"
+    },
+    {
+      "path": "agents_manager/book-reviewer/SKILL.md",
+      "engine_owned": true,
+      "sha256": "bd670d7ef725f36e0fadd06ed1d617aeea833c3e0dba5d9f9c86718e0585470d"
     },
     {
       "path": "agents_manager/research/SKILL.md",
@@ -109,14 +124,34 @@
       "sha256": "2f45b65c35e57eaa42e639add0acc75fe72f482bd212362fe56715173da1076f"
     },
     {
+      "path": "book_workflow/scripts/bilingual_smoke.py",
+      "engine_owned": true,
+      "sha256": "975a2d02d8a57c8f2bd21ff1b3fa89f8a8560cac580ab2d63421c0a1a32766bb"
+    },
+    {
       "path": "book_workflow/scripts/book_check.py",
       "engine_owned": true,
-      "sha256": "6fa0dc42af41f692e5e675e5e4c9bf381c2e289b509776eaf8d61a8ac64e6277"
+      "sha256": "b108698b8d30627fc91d832aa1550d5ae998d64698c9f577caf5146e0c8841bc"
     },
     {
       "path": "book_workflow/scripts/build_exports.py",
       "engine_owned": true,
-      "sha256": "7babc2ad785d89683d46d92c3f14977b558d38bf6fc7eee24991375f85e4750f"
+      "sha256": "f1de188bc225551eb276bf9c1405b25873ef739f98920407f9616cf8bf94bbe9"
+    },
+    {
+      "path": "book_workflow/scripts/extract_figures.py",
+      "engine_owned": true,
+      "sha256": "d84773709cb784cab43ce449206023c64534487105dd39921d8767cae0a406fb"
+    },
+    {
+      "path": "book_workflow/scripts/poll_progress.py",
+      "engine_owned": true,
+      "sha256": "b467fcc6e33a5490fc26528c0c3062acd0b77681e5fb336f46d9ec50cf3041a6"
+    },
+    {
+      "path": "book_workflow/scripts/split_source.py",
+      "engine_owned": true,
+      "sha256": "e897395aa8e4c58876d26eecb3dc4d4bced28295f8696c5330087bd708fc22bf"
     },
     {
       "path": "book_workflow/scripts/strip_publish_annotations.py",
@@ -132,6 +167,11 @@
       "path": "book_workflow/docs/frozen-lines-spec.md",
       "engine_owned": true,
       "sha256": "b35610400fc18e94a532f5481a2b6574227e6e10791ca4c66e16f66bd44d74df"
+    },
+    {
+      "path": "book_workflow/book-agents/templates/.translate-progress.schema.json",
+      "engine_owned": true,
+      "sha256": "0669c321047fa5da11d07599f30eb067e369b7d96d520b6dce74d3c973f998d1"
     },
     {
       "path": "book_workflow/book-agents/templates/frozen-lines.schema.json",
@@ -161,7 +201,7 @@
     {
       "path": "book_workflow/book-agents/templates/intake.md",
       "engine_owned": true,
-      "sha256": "7b50185a3a9e0f1a12e1d016c4e4307147ac0841f54636b81efec0409c9ffada"
+      "sha256": "bc8877444abf07413b992f783b5a04f46236d5002b96906bde1b311c06ffad56"
     },
     {
       "path": "book_workflow/book-agents/templates/ledger.md",
@@ -192,6 +232,11 @@
       "path": "book_workflow/book-agents/templates/skeleton.md",
       "engine_owned": true,
       "sha256": "3151e63309cd7f380fab22678cf4a0781b8416d80f44d71d3aaeb9fe6422f848"
+    },
+    {
+      "path": "book_workflow/book-agents/templates/source-map.md",
+      "engine_owned": true,
+      "sha256": "3756af47405250677bc4ec0295bc17bb682644e9e566062f146770eddba8c2ba"
     },
     {
       "path": "book_workflow/book-agents/templates/style-guide.md",

@@ -43,14 +43,15 @@ The installer is idempotent, dry-run-able (`--check-only`), and reversable
 | `install.py` | Cross-platform Python installer (stdlib only) |
 | `opencode.jsonc` | Minimal agent roster: master + 5 specialists |
 | `CLAUDE.md` | Project orientation for OpenCode sessions |
-| `agents_manager/` | 7 engine skills: orchestrator, writer, master, 5 specialists |
-| `book_workflow/book-agents/templates/` | 9 book-phase templates (intake, outline, etc.) |
+| `agents_manager/` | 8 engine skills: orchestrator, writer, reviewer (translation-mode), master, 5 specialists |
+| `book_workflow/book-agents/templates/` | 18 book-phase templates + 1 JSON schema (intake, outline, source-map, etc.) |
 | `books/` | Workspace seed — your manuscripts live here |
 | `share/` | Inter-agent communication (`notes/`, `handoffs/`, `reports/`) |
 | `tasks/` | Task tracker files |
 | `scripts/` | `doctor.py`, `build_manifest.py`, `build_zip.py`, `smoke_test.py` |
 | `bin/` | `book-kit` (bash), `book-kit.cmd` (Windows) wrappers |
 | `docs/` | QUICKSTART, ARCHITECTURE, TROUBLESHOOTING, UPGRADE |
+| `CONTRIBUTING.md` | How to report bugs, suggest improvements, contribute |
 | `manifest.json` | File allowlist + SHA-256 checksums |
 
 ## What's intentionally NOT in the kit
@@ -62,6 +63,10 @@ The installer is idempotent, dry-run-able (`--check-only`), and reversable
 
 See `docs/ARCHITECTURE.md` for the design rationale and `docs/UPGRADE.md` for
 how to refresh an existing install.
+
+## Feedback and contributions
+
+Bug reports, feature requests, and pull requests are welcome — see `CONTRIBUTING.md` for the workflow, what to include with each kind of report, and the triage process.
 
 ## Building the ZIP from source
 

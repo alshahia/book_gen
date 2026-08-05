@@ -416,6 +416,7 @@ Skills are non-roster procedures (e.g., `agents_manager/extract/SKILL.md`) any s
 |---|---|
 | `extract`, `template this`, `convert to template`, `extract the core knowledge`, `what would I reuse from this?` | `agents_manager/extract/SKILL.md` |
 | `write a book`, `book about X`, `draft a book`, `novel`, `nonfiction book`, `help me write`, `I want to publish`, `book on <topic>`, `book gen`, `book generation` | `agents_manager/book-gen-orchestrator/SKILL.md` (v0.21.0+) |
+| Translation-mode review trigger (auto: when am-review dispatch prompt contains `books/<slug>/chapters/ch-NN.md` AND `source-map.md` is present) | `agents_manager/book-reviewer/SKILL.md` (v0.22.0+) — two-pass review for translation chapters |
 
 **When to consult:** if the user task matches a row above, read the skill's `SKILL.md` first, then dispatch the appropriate specialist with a prompt that names the skill + the ground-truth files it needs (for extract: `templates/EXTRACTION.md` + `agents_manager/extract/rules.md`). Phase 5b option 5 handles the same trigger at task close; this section handles mid-conversation triggers. Explicit user request always wins over opt-in flag gating.
 

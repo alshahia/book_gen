@@ -4,7 +4,7 @@ description: Drive the 7-phase book-writing workflow (intake → skeleton → re
 allowed-tools: Read, Write (books/<slug>/**, share/notes/99_progress_<task-id>.md, share/handoffs/00_user_task_<task-id>.md, tasks/<id>.md), task (am-planning, am-research, am-design, am-coder, am-review), Bash (read-only)
 triggers: write a book, book about, draft a book, novel, nonfiction book, help me write, I want to publish, book on, book gen, book generation, write me a book
 preamble-tier: 3
-version: 0.21.0
+version: 0.22.0
 ---
 
 # Book-Gen Orchestrator
@@ -31,11 +31,11 @@ Take a user from "I want to write a book about X" to one or more drafted, multi-
 | 4 — Style/voice | `books/<slug>/style-guide.md` (+ `frozen-lines.json` at close) | `am-design` then master | `book_workflow/book-agents/templates/style-guide.md` | yes |
 | 5 — Writing plan | `books/<slug>/writing-plan.md` | **master directly** (reads outline + dep tags) | `book_workflow/book-agents/templates/writing-plan.md` | yes |
 | 6 — Writing | `books/<slug>/chapters/ch-NN.md` (+ bible + ledger update) | `am-coder` with `book-writer` skill loaded | — | only on chapter add/remove/reorder |
-| 7 — Review (per chapter) | ledger status update | `am-review` (3 separate invocations: dev / line / copy) | — | only on review-fail escalation |
+| 7 — Review (per chapter) | ledger status update | `am-review` (3 separate invocations: dev / line / copy — OR 2-pass `book-reviewer` for translation mode when `source-map.md` present) | — | only on review-fail escalation |
 
 ## Phase 0 — Intake (master does this itself)
 
-Use the question tool. The intake has 9 fields per `book_workflow/book-writing-agent-workflow.md` Phase 0. Field-by-field:
+Use the question tool. The intake has 15 fields per `book_workflow/book-agents/templates/intake.md`. Field-by-field:
 
 1. **Title / working title** — free text (suggest one based on user's prompt if obvious)
 2. **Core idea / goal** — free text
@@ -46,6 +46,8 @@ Use the question tool. The intake has 9 fields per `book_workflow/book-writing-a
 7. **Definition of done** — exit criteria for review loops
 8. **Exception-handling preferences** — research thin/contradictory policy; unresponsive-at-checkpoint policy (proceed-and-flag vs hard-stop)
 9. **Fiction-specific** (only if category is Fiction/Hybrid) — genre conventions research
+10. **Translation mode** (only when user signals translation intent — "translate X to Arabic", "translate this PDF", etc.) — see §10 of intake template. When `Is translation? = yes`, master copies `source-map.md` template and runs `build_source_map.py` against `source/` before Phase 3.
+11–15. **Operational caps / Tashkeel policy / Front matter / Back matter / Frozen line policy** — see intake template.
 
 Every field needs explicit user confirmation. Do not mark intake `CONFIRMED` until every field is approved. Save the confirmed intake to `books/<slug>/intake.md` using the template at `book_workflow/book-agents/templates/intake.md`.
 
@@ -53,6 +55,7 @@ After intake is confirmed:
 - Create `tasks/T-<date>-NNN-book-<slug>.md` with the canonical task-tracker schema (`tasks/README.md`).
 - Write `share/handoffs/00_user_task_T-<date>-NNN.md` capturing the user's literal request.
 - Start `share/notes/99_progress_T-<date>-NNN.md` (master's recovery ledger).
+- **Translation-mode only:** copy `book_workflow/book-agents/templates/source-map.md` to `books/<slug>/source-map.md` and run `python3 book_workflow/scripts/build_source_map.py books/<slug>/` to scaffold it. Master re-runs the generator when `source/` updates and no `source-map.md` exists.
 
 ## Phase 1 — Skeleton (dispatch am-planning)
 
@@ -130,13 +133,30 @@ Boundary reminders for am-coder:
 - do NOT mark a chapter `approved` — that's am-review's call
 - do NOT invent facts not in the bible or research-log
 
-## Phase 7 — Review (dispatch am-review, 3 passes per chapter)
+## Phase 7 — Review (dispatch am-review)
+
+### Branch A — Translation mode (intake §10 `Is translation? = yes` AND `source-map.md` present)
+
+For each `drafted` chapter, load `agents_manager/book-reviewer/SKILL.md` and dispatch `am-review` **twice** (separate invocations — never combined):
+
+1. **Pass 1 — Accuracy** — source H2 coverage, code-block SHA256 integrity (when `freeze_code = yes`), URL preservation, bolded-term preservation, word-count parity. Verdict against the per-chapter envelope in `source-map.md`. Update ledger to `accuracy-reviewed` (PASS) or dispatch fix (FAIL). Report: `share/reports/04_book-review_<task-id>_ch-<NN>_accuracy.md`.
+2. **Pass 2 — Consistency** — glossary first-occurrence rule, terminology drift, untranslated-English scan, tashkeel ratio (when Arabic), heading-level + paragraph-length style consistency, cross-chapter glossary-drift accumulation. Update ledger to `consistency-reviewed`. Report: `share/reports/04_book-review_<task-id>_ch-<NN>_consistency.md`. Cross-chapter drift ledger: `share/reports/04_book-review_<task-id>_consistency-glossary-drift.md`.
+
+When every chapter is `consistency-reviewed`, run a single whole-book copy-edit pass (same lens as Branch B step 3).
+
+### Branch B — Native book-gen (default)
 
 For each `drafted` chapter, run three **separate** am-review invocations (never combined):
 
 1. **Developmental** — does the chapter serve its outline? contradictions vs. bible? (fiction) continuity/timeline/POV? Verdict against ledger exit criteria. Update ledger to `dev-reviewed` only after issues are resolved (dispatch a fix back to am-coder if needed).
 2. **Line edit** — prose quality + voice consistency against style-guide. Respect the revision-pass cap from intake's "definition of done". Update ledger to `line-edited`.
 3. **Copy edit** — single whole-book pass once **every** chapter is `approved`. Grammar, formatting, terminology consistency at book scale. Update ledger to `approved`.
+
+### Dispatch selection (master applies at Phase 7 start)
+
+- Read `books/<slug>/intake.md` §10 `Is translation?`. If `yes` AND `books/<slug>/source-map.md` exists → Branch A.
+- Otherwise → Branch B.
+- If `Is translation? = yes` but `source-map.md` is missing → refuse to advance; surface to user (this is the Phase 3 gate's job to catch, but Phase 7 re-checks).
 
 Each pass writes its findings to `share/reports/04_book-review_<task-id>_ch-<NN>_<pass>.md`. Ledger is updated by master after each pass (master reads the review verdict, updates the row).
 
@@ -152,7 +172,9 @@ Each pass writes its findings to `share/reports/04_book-review_<task-id>_ch-<NN>
 - `ledger.md` — one row per chapter (am-coder writes status, master updates after review)
 - `decisions-log.md` — append-only (any agent can append; mostly master for phase changes)
 - `chapters/ch-NN.md` — the prose itself (am-coder)
+- `source-map.md` — Phase 0 (translation-mode only; master copies template + runs `build_source_map.py` generator when `source/` exists)
 - `frozen-lines.json` — Phase 4 close (master writes; SHA256 manifest of style-guide frozen lines; enforced by `book_check.py`)
+- `.translate-progress.json` — Phase 6 (translation-mode only; book-writer appends per-part per the chunked-write + resume protocol; schema in `book_workflow/book-agents/templates/.translate-progress.schema.json`)
 - `exports/` — Phase 5b (master runs `book_workflow/scripts/build_exports.py`; toc + glossary + index + clean chapters + manifest)
 - `reviews/ch-NN-<pass>.md` — review outputs (am-review; OR kept in `share/reports/` for agents_manager consistency)
 

@@ -49,14 +49,15 @@ master -> am-research -> am-planning -> [am-assets if visual template] -> am-des
 **Two new skill files, both non-roster** (loaded on demand via the skill tool, not dispatched as agents):
 - `agents_manager/book-gen-orchestrator/SKILL.md` — phase routing + template pointers. Master loads this.
 - `agents_manager/book-writer/SKILL.md` — prose-writing posture for am-coder during Phase 6. Master instructs am-coder to load it via the skill tool.
+- `agents_manager/book-reviewer/SKILL.md` (v0.22.0+, translation-mode only) — two-pass review posture for am-review when the dispatch includes `books/<slug>/chapters/ch-NN.md` AND `source-map.md`. Master dispatches Pass 1 (accuracy vs. source) and Pass 2 (cross-chapter consistency) as **separate invocations** — never combined. When `source-map.md` is absent, am-review falls back to the standard 3-pass posture (dev / line / copy).
 
-**Output root: `books/<slug>/`** — NOT `share/`. Books are the project's product; `share/` is reserved for inter-agent communication. Per-book files: `intake.md`, `skeleton.md`, `research-log.md`, `outline.md`, `style-guide.md`, `writing-plan.md`, `bible.md`, `ledger.md`, `decisions-log.md`, `chapters/ch-XX.md`.
+**Output root: `books/<slug>/`** — NOT `share/`. Books are the project's product; `share/` is reserved for inter-agent communication. Per-book files: `intake.md`, `skeleton.md`, `research-log.md`, `outline.md`, `style-guide.md`, `writing-plan.md`, `bible.md`, `ledger.md`, `decisions-log.md`, `source-map.md` (translation-mode only), `frozen-lines.json`, `.translate-progress.json` (translation-mode only), `chapters/ch-XX.md`.
 
-**Upstream spec: `book_workflow/book-agents/`** (NOT in `agents_manager/`). 9 templates at `book_workflow/book-agents/templates/` + 6 sub-agent SKILL.md files. The orchestrator skill references these for canonical structure.
+**Upstream spec: `book_workflow/book-agents/`** (NOT in `agents_manager/`). Templates at `book_workflow/book-agents/templates/` (18 markdown + 1 JSON schema) + 6 sub-agent SKILL.md files. The orchestrator skill references these for canonical structure.
 
 **Smoke-test reference: `books/daily-focus/`** — ch-01 reached `approved` (2,465 words), ch-02–05 stubbed `skipped`. Read this first to see what good book-gen output looks like before producing more. Two review reports: `share/reports/04_review_T-2026-07-30-001_dev-ch01.md` + `04_review_T-2026-07-30-001_lineedit-ch01.md`.
 
-**User gates** (work pauses for confirmation): Phase 0 (intake fields), Phase 3 (outline contradictions + dependency graph), Phase 4 (style-guide confirmation). Phase 5 has no checkpoint. Phase 7 review = 3 separate passes (dev → line → copy-edit); **copy-edit only when ALL chapters `approved`** — skipped on partial runs.
+**User gates** (work pauses for confirmation): Phase 0 (intake fields — §10 translation-mode fields appear only when user signals translation intent), Phase 3 (outline contradictions + dependency graph; refuses to advance without populated `source-map.md` when §10 `Is translation? = yes`), Phase 4 (style-guide confirmation). Phase 5 has no checkpoint. Phase 7 review = **Branch A** (translation-mode: 2-pass `book-reviewer` accuracy + consistency) OR **Branch B** (native: 3-pass dev → line → copy-edit); copy-edit only when ALL chapters `approved` — skipped on partial runs.
 
 **Publish-time strip:** `books/daily-focus/chapters/ch-01.md` lines 87-94 hold a self-critique HTML comment for orchestrator/reviewer handoff. Strip before any external publish.
 
@@ -157,7 +158,7 @@ There are no tests for `bin/` scripts — only `scripts/validate-frontmatter.py`
 4. `agents_manager/<role>/SKILL.md` — for any specialist you dispatch
 5. `agents_manager/CHANGELOG.md` — system evolution (read latest entry first)
 6. `share/notes/02_plan_*.md` + `tasks/<id>.md` — current in-flight work
-7. **Book-gen intent?** also read `agents_manager/book-gen-orchestrator/SKILL.md`, `agents_manager/book-writer/SKILL.md`, `books/daily-focus/` (smoke-test reference), `book_workflow/book-agents/templates/`.
+7. **Book-gen intent?** also read `agents_manager/book-gen-orchestrator/SKILL.md`, `agents_manager/book-writer/SKILL.md`, `agents_manager/book-reviewer/SKILL.md` (translation-mode only), `books/daily-focus/` (smoke-test reference), `book_workflow/book-agents/templates/`.
 
 ## Tool usage efficiency (v0.5.1+)
 

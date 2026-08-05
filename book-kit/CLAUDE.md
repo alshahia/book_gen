@@ -2,12 +2,12 @@
 
 This repo is a **portable book-writing environment** powered by OpenCode and the agents-manager multi-agent pipeline. 6 specialist agents are defined in `opencode.jsonc` (master + research + planning + design + coder + review). Walls are enforced by prose (every agent has `permission: "allow"`).
 
-**Working in this repo:** when the user says "write a book" or any book-gen trigger, master loads `agents_manager/book-gen-orchestrator/SKILL.md` and drives the 7-phase pipeline (intake → skeleton → research → outline → style → writing-plan → per-chapter write → 3-pass review). For all other multi-step work, master dispatches the 5 specialists directly per the standard pipeline.
+**Working in this repo:** when the user says "write a book" or any book-gen trigger, master loads `agents_manager/book-gen-orchestrator/SKILL.md` and drives the 7-phase pipeline (intake → skeleton → research → outline → style → writing-plan → per-chapter write → review). For all other multi-step work, master dispatches the 5 specialists directly per the standard pipeline.
 
 ## Pipeline (book-gen shape)
 
 ```
-master -> am-research -> am-planning -> am-design -> master (writing-plan) -> am-coder (per chapter, with book-writer skill) -> am-review (3 passes per chapter)
+master -> am-research -> am-planning -> am-design -> master (writing-plan) -> am-coder (per chapter, with book-writer skill) -> am-review (review passes)
                                        ^                                              ^
                                        |                                              |
                                        +-- bible.md append <------- ledger.md update -+
@@ -17,7 +17,7 @@ master -> am-research -> am-planning -> am-design -> master (writing-plan) -> am
 - **Specialists never spawn other specialists.** Only master orchestrates.
 - All inter-agent communication goes through files in `share/`. No out-of-band chat.
 - Book artifacts live in `books/<slug>/**` (not `share/`). `share/` is for inter-agent coordination.
-- Per-book files: `intake.md`, `skeleton.md`, `research-log.md`, `outline.md`, `style-guide.md`, `writing-plan.md`, `bible.md`, `ledger.md`, `decisions-log.md`, `chapters/ch-XX.md`.
+- Per-book files: `intake.md`, `skeleton.md`, `research-log.md`, `outline.md`, `style-guide.md`, `writing-plan.md`, `bible.md`, `ledger.md`, `decisions-log.md`, `source-map.md` (translation-mode only), `frozen-lines.json`, `.translate-progress.json` (translation-mode only), `chapters/ch-XX.md`.
 
 ## Auto-routing
 
@@ -27,12 +27,12 @@ master -> am-research -> am-planning -> am-design -> master (writing-plan) -> am
 
 ## User gates (book-gen pauses for confirmation)
 
-- Phase 0 (intake fields) — every field needs explicit confirmation.
-- Phase 3 (outline contradictions + dependency graph) — last gate before writing.
+- Phase 0 (intake fields — §10 translation-mode fields appear only when user signals translation intent) — every field needs explicit confirmation.
+- Phase 3 (outline contradictions + dependency graph; refuses to advance without populated `source-map.md` when §10 `Is translation? = yes`) — last gate before writing.
 - Phase 4 (style-guide confirmation) — gates voice adoption.
 - Phase 5 (writing-plan) — gates dispatch order.
 
-Phase 7 review = 3 separate passes (dev → line → copy). **Copy-edit only when ALL chapters `approved`** — skipped on partial runs.
+Phase 7 review = **Branch A** (translation-mode: 2-pass `book-reviewer` accuracy + consistency) OR **Branch B** (native: 3-pass dev → line → copy). **Copy-edit only when ALL chapters `approved`** — skipped on partial runs.
 
 ## Hard rules
 

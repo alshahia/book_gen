@@ -2,6 +2,28 @@
 
 All notable changes to the `agents_manager` system. Newest on top.
 
+## v0.22.0 — book-gen translation-mode wired into orchestrator (2026-08-05)
+
+**Translation-mode is now a first-class book-gen path at the controller level.** Resolves the v0.2.0 open item "Master dispatch loop for the two-pass `book-reviewer` — shipped as a skill, not yet wired into orchestrator" by promoting the three missing artifacts from `book-kit/` into the controller and wiring Phase 7 with explicit Branch A / Branch B dispatch-selection. Validated by `scripts/test-dispatch-selection.py` (4 scenarios + book_check no-false-positive) against the real `books/ai-agents-with-python/` project.
+
+### What's new
+
+1. **`agents_manager/book-reviewer/SKILL.md` (new skill, v0.22.0)** — two-pass review posture for `am-review` on translation-mode chapters (Pass 1 = accuracy vs. source; Pass 2 = cross-chapter consistency). Previously lived only in `book-kit/agents_manager/book-reviewer/`. Master now loads it on Phase 7 Branch A dispatch. Trigger condition (encoded in orchestrator Phase 7 + master SKILL trigger table): dispatch prompt contains `books/<slug>/chapters/ch-NN.md` AND `source-map.md` is present.
+2. **`book_workflow/book-agents/templates/source-map.md` (new template)** — per-chapter binding to source file + word_min/word_max + required_h2 + freeze_code. Schema-fixed so `book_check.py` can parse it deterministically. Previously lived only in `book-kit/book_workflow/book-agents/templates/source-map.md`.
+3. **`book_workflow/book-agents/templates/.translate-progress.schema.json` (new schema)** — append-only resume ledger for the chunked-write + resume protocol. Fields: `status`, `parts_written`, `expected_parts`, `last_byte_offset`, `last_line_number`, `session_id`, `started_at`, `last_updated`, `checksum`, `glossary_gaps`, `notes`. JSON-schema-validated, not freetext. Previously lived only in `book-kit/book_workflow/book-agents/templates/.translate-progress.schema.json`.
+4. **Orchestrator Phase 7 wired with Branch A / Branch B dispatch-selection** — `agents_manager/book-gen-orchestrator/SKILL.md` Phase 7 now reads `books/<slug>/intake.md` §10 `Is translation?`. If `yes` AND `source-map.md` is present → Branch A (load `book-reviewer/SKILL.md`; dispatch am-review **twice** — Pass 1 accuracy + Pass 2 consistency — never combined). If `yes` but `source-map.md` missing → REFUSE; surface to user. Otherwise → Branch B (3-pass dev/line/copy, unchanged).
+5. **Orchestrator State files list updated** — added `source-map.md` (Phase 0, translation-mode) and `.translate-progress.json` (Phase 6, translation-mode) to the master-owned state files.
+6. **Orchestrator Phase 0 §10 translation-mode fields added** — 15-field intake (was 9). New §10 fields: `Is translation?` / `Source root` / `Source-naming convention` / `Target slug pattern` / `Tashkeel policy` / `Freeze code blocks` / `Source map filled`. Renumbered downstream fields 11–15 (operational caps / tashkeel policy / front matter / back matter / frozen line policy).
+7. **`book_workflow/book-agents/templates/intake.md` §10 updated to match** — same 7 translation-mode fields, same renumbering. Mechanical gates updated: Phase 3 refuses to advance past outline gate when §10 `Is translation? = yes` but `source-map.md` is missing.
+8. **Master SKILL trigger table updated** — `agents_manager/SKILL.md` now lists `book-reviewer/SKILL.md` as an auto-trigger for translation-mode review dispatches.
+9. **Orientation docs updated** — `CLAUDE.md`, `AGENTS.md`, `books/README.md` all reflect the new layout (source-map.md + frozen-lines.json + .translate-progress.json), Branch A vs Branch B review naming, and the 15-field intake.
+10. **`scripts/test-dispatch-selection.py` (new smoke test)** — 4 dispatch scenarios (real native / synthetic translation+map / §10=yes-no-map / stray-source-map) + book_check.py no-false-positive verification on `books/ai-agents-with-python/`. All scenarios pass.
+
+### What's still open
+
+- `book-kit/` (separate portable distribution) does NOT yet have these Phase 7 wiring improvements. Kit ships `agents_manager/book-gen-orchestrator/SKILL.md` at v0.21.0 — it would need a v0.22.0 of its own to mirror the controller changes. Held until kit release is explicitly scheduled.
+- The kit's `book_check.py` (294 lines, has translation-specific checks: source-ratio, missing-H2, code-block-freeze, untranslated-English, glossary drift) is not promoted to the controller's `book_check.py` (88 lines, base version only). Native projects get the base checks; translation-mode projects would still need to install the kit. Held — promoting would change behavior for any existing native project.
+
 ## Book Kit v0.2.0 — translation-mode + mechanical review (full release) (2026-08-04)
 
 **Full release.** Promotes v0.2.0-alpha to v0.2.0 with four production-grade features for translation-mode projects: figure extraction, RTL TOC, Arabic-Indic page numbers, live progress dashboard. All four validated against the 29-file `agentic-design-patterns-ar` project — see `books/agentic-design-patterns-ar/exports/SMOKE_REPORT.md`.

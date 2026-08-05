@@ -20,6 +20,8 @@ For single-step work (a quick file edit, a one-off question), do it directly —
 
 **v0.9.0:** `am-design` (12-mode design specialist) added. Strict separation: am-design never writes `src/**`; reference implementations are am-coder's job.
 
+**v0.22.0+ book-gen:** Translation-mode (`books/<slug>/source-map.md` present) routes Phase 7 through `agents_manager/book-reviewer/SKILL.md` (2-pass accuracy + consistency) instead of the default 3-pass dev/line/copy. Master dispatches Pass 1 + Pass 2 as separate invocations — never combined. See `AGENTS.md` § Book-gen mode for full details.
+
 ## Tool usage efficiency (v0.5.1+)
 
 This applies to **this** LLM (Claude Code / OpenCode session) when operating in this repo, not just to the 5 agents.
@@ -100,3 +102,7 @@ Master writes global + project; specialists write role. All entries follow the s
 - `agents_manager/README.md` — pipeline overview
 - `agents_manager/CHANGELOG.md` — system evolution history
 - `AGENTS.md` — repo-local instruction file (high-signal facts only)
+- `agents_manager/book-gen-orchestrator/SKILL.md` — 7-phase book-writing pipeline (master loads on "write a book" intent)
+- `agents_manager/book-writer/SKILL.md` — prose-writing posture for am-coder during book-gen Phase 6
+- `agents_manager/book-reviewer/SKILL.md` (v0.22.0+, translation-mode only) — 2-pass review for translated chapters
+- `book_workflow/book-agents/templates/` — canonical templates master copies per book project
