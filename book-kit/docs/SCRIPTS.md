@@ -424,3 +424,158 @@ pattern.
 
 **Stdlib-only.** No new dependencies. Forces UTF-8 stdio at module load before
 any argparse construction or output.
+
+---
+
+## duckduckgo_search.py (P9)
+
+Thin DuckDuckGo HTML scraper. Used as the third-tier fallback in the
+multi-source research pipeline when both Exa and Firecrawl return
+fewer than three unique URLs. Talks to
+`https://html.duckduckgo.com/html/?q=...` (server-rendered, no JS)
+via `urllib.request` and parses `result__a` / `result__snippet`
+classes with stdlib regexes.
+
+**Usage:**
+```sh
+python duckduckgo_search.py "<query>" [--max-results N]
+```
+
+**Output:** JSON list `[{"url", "title", "snippet"}, ...]` to stdout.
+
+**Importable as a library:**
+```python
+from duckduckgo_search import duckduckgo_search
+results = duckduckgo_search("python testing", max_results=10)
+```
+
+**Behavior on failure:** any network error (DNS, timeout, non-2xx,
+captcha) writes one line to stderr and returns `[]`. The parent
+pipeline never crashes on a flaky DDG response.
+
+**Exit codes:** 0 = JSON written, 2 = argparse / network error
+unrecoverable from the CLI side.
+
+**Stdlib-only.** No new dependencies. Forces UTF-8 stdio at module load
+before any argparse construction or output (WARN #15 / #22 inheritance).
+
+---
+
+## parallel_search.py (P9)
+
+Orchestrator that merges Exa + Firecrawl result lists and, with the
+`--fallback` flag, appends DuckDuckGo results when the dedup'd
+primary union has fewer than three unique URLs. The agent invokes
+the MCP layers (they require OAuth + LLM-side tool calls), writes each
+layer's JSON list to a temp file, then calls this CLI with the file
+paths. The CLI handles dedup, source tagging, fallback dispatch, and
+the search-trail audit log.
+
+**Usage:**
+```sh
+python parallel_search.py "<query>" [--max-results N] [--fallback]
+    [--exa-results <path>] [--firecrawl-results <path>]
+    [--task <task-id>]
+```
+
+**Layer contract:** each `--exa-results` / `--firecrawl-results` path
+points to a JSON file containing `[{"url", "title", "snippet"}, ...]`.
+Missing files are treated as empty (graceful degradation).
+
+**Source tagging:** every result dict gets a `source: "exa" | "firecrawl" | "ddg"`
+field so the downstream consumer can attribute coverage.
+
+**Fallback rule:** when `--fallback` is set and the dedup'd primary union
+has fewer than 3 unique URLs, the script invokes
+`duckduckgo_search.py` as a subprocess and appends the tagged results.
+
+**Search trail:** one line per layer is appended to
+`share/notes/01_research_<task>_search-trail.md` in the form
+`layer=exa|firecrawl|ddg results=N query="..."`. The trail is the audit
+record of which layer produced which results.
+
+**Importable for tests:**
+```python
+from parallel_search import parallel_search
+results = parallel_search(query, max_results=10, fallback=True,
+                          exa_fn=..., firecrawl_fn=..., ddg_fn=...)
+```
+
+**Exit codes:** 0 = JSON written.
+
+**Stdlib-only.** No new dependencies. Forces UTF-8 stdio at module load
+before any argparse construction or output (WARN #15 / #22 inheritance).
+
+---
+
+## dedup_results.py (P9)
+
+URL canonicalization + dedup for multi-source search results. Each
+result is rewritten to its canonical URL form, then duplicates are
+collapsed to the first occurrence. Source tags (`source: "exa" |
+"firecrawl" | "ddg"`) are preserved through the round-trip.
+
+**Usage:**
+```sh
+python dedup_results.py results.json   # file input
+python dedup_results.py -              # read from stdin
+```
+
+**Output:** JSON list `[{"url", "title", "snippet", "source"}, ...]` to stdout.
+
+**Importable as a library:**
+```python
+from dedup_results import canonicalize, dedup
+canon = canonicalize("HTTPS://Example.COM/Article?utm_source=foo")
+# -> "https://example.com/Article"
+unique = dedup(results_list)
+```
+
+**Canonicalization rules (verbatim from plan §P9):**
+- lowercase scheme + host
+- strip `utm_*` query parameters (`utm_source`, `utm_medium`,
+  `utm_campaign`, `utm_term`, `utm_content`, `utm_id`)
+- normalize trailing slash on the path (collapse `/path/` -> `/path`;
+  the root `/` is preserved for forward compatibility)
+- preserve everything else verbatim (other query params, fragment)
+
+**Dedup:** by canonical URL; first occurrence wins.
+
+**Exit codes:** 0 = JSON written, 2 = bad JSON or input is not a list.
+
+**Stdlib-only.** No new dependencies. Forces UTF-8 stdio at module load
+before any argparse construction or output (WARN #15 / #22 inheritance).
+
+---
+
+## check-search-keys.sh (P9)
+
+Bash helper that prints masked status of search-provider API keys and
+exits non-zero when a required key is missing. Sources `.env.local`
+silently (walks up from the script's directory until it finds one).
+
+**Usage:**
+```sh
+bash book-kit/bin/check-search-keys.sh
+```
+
+**Output:**
+```
+env source: /path/to/.env.local
+FIRECRAWL_API_KEY: set (last 4: 4fa46)
+EXA_API_KEY: missing (last 4: —) [optional]
+```
+
+**Masking rule (WARN #14 inheritance):** the script NEVER echoes the
+full key. When set, only the last 4 characters are printed; when
+missing, the script prints `—` (em-dash).
+
+**Required vs optional:**
+- `FIRECRAWL_API_KEY` - required. Exit code 1 if missing or empty.
+- `EXA_API_KEY` - optional (Exa is OAuth-wired; the key is an override
+  only). Missing does not affect the exit code.
+
+**Exit codes:** 0 = all required keys set; 1 = at least one required
+key is missing.
+
+**Stdlib-only** (bash + `printf` + `tail`). No new dependencies.

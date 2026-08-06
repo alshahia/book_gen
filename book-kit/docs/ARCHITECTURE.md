@@ -146,3 +146,81 @@ posture, or pollute coder's lens with route table. Kept separate.
 - `chub` is opt-in via `--with-chub`. npm is tried first, pip falls back.
   Both may fail silently on locked-down systems — the agent surfaces the
   gap on first use rather than failing the install.
+
+## Multi-source research MCPs (P9)
+
+The kit's research pipeline uses three search backends in parallel,
+with a fourth (DuckDuckGo) as a free fallback. The diagram below shows
+how `am-research` composes the layers.
+
+```mermaid
+flowchart LR
+    Agent["am-research<br/>(parallel tool_use)"]
+    Exa["websearch (built-in)<br/>+ exa MCP<br/>OAuth: enabled<br/>key: not required"]
+    Firecrawl["firecrawl MCP<br/>https://mcp.firecrawl.dev/v2/mcp-oauth<br/>key: FIRECRAWL_API_KEY"]
+    Dedup["dedup_results.py<br/>canonicalize + dedup"]
+    Trail["share/notes/01_research_&lt;task&gt;_search-trail.md"]
+    DDG["duckduckgo_search.py<br/>html.duckduckgo.com/html/?q=...<br/>(no API key)"]
+
+    Agent -- "primary parallel call" --> Exa
+    Agent -- "primary parallel call" --> Firecrawl
+    Exa -- "source=exa" --> Dedup
+    Firecrawl -- "source=firecrawl" --> Dedup
+    Dedup -- "layer=exa results=N" --> Trail
+    Dedup -- "layer=firecrawl results=N" --> Trail
+    Dedup -- "unique URLs &lt; 3 ?" --> Agent
+    Agent -- "yes, --fallback flag" --> DDG
+    DDG -- "source=ddg" --> Dedup
+    DDG -- "layer=ddg results=N" --> Trail
+```
+
+**ASCII fallback** (when the renderer does not grok mermaid):
+
+```
+   +-----------+    parallel tool_use    +-----------------+
+   | am-       | ----------------------> | websearch (Exa) |
+   | research  | ----------------------> | firecrawl MCP   |
+   +-----+-----+                         +--------+--------+
+         |                                        |
+         | primary union < 3 unique URLs?         | source-tagged results
+         | (+ --fallback flag)                    v
+         |                                +-------+--------+
+         +------------------------------> | dedup_results.py|
+                                          +-------+--------+
+                                                  |
+                                                  v
+                                share/notes/01_research_<task>_search-trail.md
+                                                  ^
+                                                  | layer=ddg results=N
+                                          +-------+--------+
+                                          | duckduckgo_search.py |
+                                          | (no API key)        |
+                                          +--------------------+
+```
+
+Layer details:
+
+- **websearch / exa** - dual-wired. The built-in `websearch` permission
+  is the casual-search path; the explicit `exa` MCP is the
+  semantic-query path. Both go to `https://mcp.exa.ai/mcp` via OAuth;
+  no key required.
+- **firecrawl** - OAuth MCP at
+  `https://mcp.firecrawl.dev/v2/mcp-oauth`. The MCP gateway accepts the
+  `FIRECRAWL_API_KEY` from `.env.local` during the OAuth dance; the
+  key is NEVER stored in `opencode.json`.
+- **duckduckgo_search.py** - thin Python wrapper around
+  `https://html.duckduckgo.com/html/?q=...` (server-rendered HTML, no
+  JS). Free, no key, ~30 lines. Parses `result__a` and `result__snippet`
+  classes via stdlib regexes.
+- **dedup_results.py** - canonicalize (lowercase scheme + host, strip
+  `utm_*`, normalize trailing slash on non-root paths) then dedup by
+  canonical URL keeping the first occurrence.
+- **search-trail.md** - one line per layer (`layer=exa|firecrawl|ddg
+  results=N query="..."`); the audit record of which layer produced
+  which results. Planning agent reads it before locking the plan.
+
+The host MCP config (`~/.config/opencode/opencode.json`) carries both
+`exa` and `firecrawl` entries; `.env.local` carries `FIRECRAWL_API_KEY`
+(gitignored). See `agents_manager/research/SKILL.md` section
+"Multi-source research protocol (P9)" for the agent-side invocation
+contract.

@@ -239,6 +239,63 @@ The full pattern: read all relevant files in one parallel batch, then issue all 
 
 ---
 
+## Multi-source research protocol (P9)
+
+When the task needs fresh web evidence (current API docs, recent CVE
+postings, library changelogs, pricing pages, etc.) the research sub-agent
+runs a **parallel multi-source search** before going deep on any single
+result. Three tiers, in order of authority:
+
+1. **Primary** - `websearch` (built-in Exa via OAuth) **and** the
+   `firecrawl` MCP (`https://mcp.firecrawl.dev/v2/mcp-oauth`) invoked
+   **in parallel** in the same `tool_use` block. Exa returns semantic
+   matches; Firecrawl returns scraped content for known URLs. Tag each
+   returned result with `source: "exa"` or `source: "firecrawl"`.
+2. **Explicit semantic** - when the task asks for "papers about X" or
+   "best practices for Y", call the explicit `exa` MCP (same URL,
+   semantic-query variant) for higher-quality results on top of the
+   primary call. Merge by canonical URL.
+3. **Fallback** - if the dedup'd primary union has fewer than **3
+   unique URLs**, the agent:
+   a. Tries `webfetch` against any URL the caller already knows (e.g.
+      a documentation page referenced in prior research).
+   b. Then invokes `book-kit/book_workflow/scripts/duckduckgo_search.py`
+      (thin `urllib` wrapper around `html.duckduckgo.com/html/?q=...`,
+      returns a JSON list to stdout) for any net-new queries. Tag each
+      result with `source: "ddg"`.
+   c. Finally merges and dedups the union via
+      `book-kit/book_workflow/scripts/dedup_results.py` (canonicalize =
+      lowercase scheme + host, strip `utm_*`, normalize trailing slash
+      on non-root paths; dedup by canonical URL keeping the first
+      occurrence).
+
+Each layer logs one line to
+`share/notes/01_research_<task-id>_search-trail.md` in the form
+`layer=exa|firecrawl|ddg results=N query="..."`. This trail is the audit
+record of which layer produced which results - the planning agent reads
+it before locking the plan.
+
+Chapter references inside this file use ASCII hyphen-minus
+(`ch-03..ch-05`) **and** en-dash (`ch-03..ch-05`, U+2013) - both forms
+parse correctly. Accept either, never silently miss one (WARN #19
+inheritance).
+
+Why this shape:
+
+- **Parallel primary**: Exa is semantic, Firecrawl is scraper; their
+  result sets rarely overlap, so the union is wider than either alone
+  with zero extra wall-clock time.
+- **DuckDuckGo third**: free, no API key, no auth dance; fine for the
+  long-tail queries the primary pair missed.
+- **Brave dropped**: no free tier; introducing it would have added
+  cost with no unique coverage (YAGNI).
+
+For host setup see `book-kit/docs/ARCHITECTURE.md` section
+"Multi-source research MCPs". For the dedup + canonicalize rules see
+`book-kit/book_workflow/scripts/dedup_results.py`.
+
+---
+
 ## Preflight (v0.14.1+)
 
 Before you write a single line of the research file, answer three questions in your head:

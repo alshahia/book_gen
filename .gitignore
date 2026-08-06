@@ -9,3 +9,5 @@ dist/
 *.bak
 *.bak.*
 .DS_Store
+.env.local
+
