@@ -342,6 +342,45 @@ def main(argv=None):
             info["glossary_drift"] = drifts
             info["glossary_drift_exempt"] = exempt
 
+    # ---- cross-reference check (P3 wire-up) ----
+    # Auto-runs whenever the book root has a `chapters/` subdirectory.
+    # Counts every cross-reference across the chapter files, resolves each
+    # against the chapter index, and flags any broken target. Failures are
+    # appended to the JSON payload + stderr, and contribute to the FAIL
+    # verdict. The check is wrapped in try/except so a missing or
+    # unimportable cross_ref.py degrades gracefully (we just print an info
+    # line and continue with the existing checks).
+    cross_ref_broken: list[dict] = []
+    cross_ref_total = 0
+    cross_ref_resolved = 0
+    if chapters.exists():
+        try:
+            _scripts_dir = Path(__file__).resolve().parent
+            if str(_scripts_dir) not in sys.path:
+                sys.path.insert(0, str(_scripts_dir))
+            from cross_ref import run_cross_ref as _run_cross_ref
+            _cr_chapters = sorted(chapters.glob("ch-*.md"))
+            _cr = _run_cross_ref(_cr_chapters, book_root=root)
+            cross_ref_broken = _cr["broken"]
+            cross_ref_total = _cr["total"]
+            cross_ref_resolved = _cr["resolved"]
+            if cross_ref_broken:
+                failed = True
+                for b in cross_ref_broken:
+                    print(
+                        f"FAIL: cross_ref: {b['from_file']}:{b['line']} "
+                        f"→ {b['expected_target']}: {b['reason']}",
+                        file=sys.stderr,
+                    )
+            else:
+                print(
+                    f"PASS: cross_ref: {cross_ref_resolved}/{cross_ref_total} resolved",
+                    file=sys.stderr,
+                )
+        except ImportError as e:
+            print(f"info: cross_ref.py not importable ({e}); skipping cross_ref check",
+                  file=sys.stderr)
+
     # ---- summary ----
     def _ratio_out_of_band(fname, v):
         if v["source_ratio"] is None:
@@ -365,6 +404,7 @@ def main(argv=None):
             "source_ratio": sum(1 for f, v in result.items() if _ratio_out_of_band(f, v)),
             "untranslated_english": sum(1 for v in result.values() if v["untranslated_ratio"] > UNTRANSLATED_TOLERANCE),
             "glossary_drift": sum(1 for v in result.values() if v.get("glossary_drift") and not v.get("glossary_drift_exempt")),
+            "cross_ref": len(cross_ref_broken),
         },
     }
 
@@ -403,7 +443,11 @@ def main(argv=None):
         except (OSError, ValueError) as e:
             print(f"warning: invalid .translate-progress.json: {e}", file=sys.stderr)
 
-    print(json.dumps({"summary": summary, "chapters": result, "progress": progress}, ensure_ascii=False, sort_keys=True))
+    print(json.dumps({"summary": summary, "chapters": result, "progress": progress,
+                      "cross_ref": {"broken": cross_ref_broken,
+                                    "resolved": cross_ref_resolved,
+                                    "total": cross_ref_total}},
+                     ensure_ascii=False, sort_keys=True))
     print(f"book_check: {'FAIL' if failed else 'PASS'} ({len(result)} chapters, {len(progress)} progress entries)", file=sys.stderr)
     return 1 if failed else 0
 
