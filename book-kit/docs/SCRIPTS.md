@@ -318,3 +318,43 @@ python gate_summary.py --book books/<slug>/ --chapter ch-NN \
 **Review parsing:** case-sensitive top-of-line `^### CRITICAL$` and `^### HIGH$` headers; sub-issues are every other `^### ` header (case-insensitive on sub-issues; only the exact severity strings are skipped).
 
 **Stdlib-only.** No new dependencies. Forces UTF-8 stdio at the top of the module so `--help` doesn't crash on Windows-cp1256 terminals (P4 #15 / P5 #22 inheritance).
+
+---
+
+## index_reports.py
+
+Builds a deterministic markdown index for the shared phase reports. Scans only
+top-level files named `00_*.md` through `08_*.md`, silently skips malformed
+names, groups rows by phase prefix, and sorts dates descending within each
+phase.
+
+**Usage:**
+```sh
+python index_reports.py [--regen] [--reports-dir <path>]
+```
+
+**Modes:**
+| Mode | Behavior |
+|---|---|
+| default | Print generated `INDEX.md` content to stdout; write nothing. |
+| `--regen` | Write generated content to `<reports-dir>/INDEX.md`. The output path is resolved and verified to be directly under the reports directory before writing. |
+
+**Status priority (first match wins in the first 200 lines):**
+1. First supported token in a fenced `verdict` block: `PASS`, `FAIL`, `APPROVED`, `FIX-LOOP`, `REJECTED`, or `READY_FOR_REVIEW`.
+2. `[auto-accepted triageable]` marker → `PASS_WITH_WARN`.
+3. Next token on a `Verdict:` line.
+4. First data-cell value under a markdown table's `Status` column.
+5. `—` when no status signal exists.
+
+**Date:** first `YYYY-MM-DD` in the filename, otherwise the first such date in
+the report's first 30 lines, otherwise `—`.
+
+**Empty directory:** emits the table header followed by `No reports found`.
+Re-running `--regen` with unchanged inputs is byte-identical. The generated
+`INDEX.md` is not re-indexed because it does not match the phase filename
+pattern.
+
+**Exit codes:** 0 = rendered or regenerated, 2 = output-path/write error.
+
+**Stdlib-only.** No new dependencies. Forces UTF-8 stdio at module load before
+any argparse construction or output.

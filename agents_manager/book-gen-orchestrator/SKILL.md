@@ -174,6 +174,17 @@ For each `drafted` chapter, run three **separate** am-review invocations (never 
 
 Each pass writes its findings to `share/reports/04_book-review_<task-id>_ch-<NN>_<pass>.md`. Ledger is updated by master after each pass (master reads the review verdict, updates the row).
 
+## Phase 8 — Post-pipeline report index (master runs `index_reports.py`)
+
+After the Phase 7 review passes finish, master regenerates the shared report index:
+
+```sh
+python book-kit/book_workflow/scripts/index_reports.py \
+    --regen --reports-dir share/reports
+```
+
+The script scans top-level `00_*.md` through `08_*.md` reports, groups them by phase, sorts each phase by date descending, and writes `share/reports/INDEX.md`. Status comes from the first supported verdict signal in each report's first 200 lines. Re-runs are byte-stable and replace the same file; omit `--regen` to preview the generated index on stdout without writing it.
+
 ## State files (master-owned, all under `books/<slug>/`)
 
 - `intake.md` — Phase 0 (master writes)
