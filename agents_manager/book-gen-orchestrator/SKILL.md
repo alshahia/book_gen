@@ -126,6 +126,7 @@ For each chapter (or each independent parallel group):
 2. `am-coder` writes the chapter to `books/<slug>/chapters/ch-NN.md`.
 3. `am-coder` appends new facts/details to `books/<slug>/bible.md` (append, never rewrite).
 4. `am-coder` updates `books/<slug>/ledger.md` to mark the chapter `drafted`.
+5. After `am-coder`'s gate pass lands, master (or `am-coder` itself) runs `python book-kit/book_workflow/scripts/render_ledger_check.py --book books/<slug> --chapter ch-NN --out books/<slug>/ledger.md` to refresh the `## Gate checklist` block in `ledger.md`. The script consumes `check_chapter.py --json` + `book_check.py --json` output and replaces the block in-place; re-runs are idempotent (no duplicate rows). When `am-coder` writes the chapter file the orchestrator has the canonical "chapter just landed" moment to run this — a single line in the post-write hook is enough.
 
 Boundary reminders for am-coder:
 - write ONLY to `books/<slug>/chapters/`, `books/<slug>/bible.md`, `books/<slug>/ledger.md`
