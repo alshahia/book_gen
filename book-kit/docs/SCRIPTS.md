@@ -276,3 +276,45 @@ python md2pdf.py <md-file> [<md-file> ...] [--out DIR] [--css FILE] [--figures-m
 - Chrome or Edge installed (one of the auto-discovered paths)
 
 **Exit codes:** 0 = success, 1 = missing input files / Chrome not found / subprocess failure.
+
+---
+
+## gate_summary.py
+
+Per-chapter gate artifact emitter. Reads the P2 `check_chapter` output,
+the P3 `book_check.py` output, the book's `frozen-lines.json` and
+`ledger.md`, plus the latest `04_review_*.md`, and renders a 5-field
+gate summary (`Word count`, `Book-check`, `Reviewer`, `Frozen lines
+touched`, `Open questions`) into `share/reports/<task>/02_gate_ch-NN_<task>.md`.
+Wired into the orchestrator's Phase 7 (see `agents_manager/book-gen-orchestrator/SKILL.md`).
+
+**Usage:**
+```sh
+python gate_summary.py --book books/<slug>/ --chapter ch-NN \
+                       --review share/reports/04_review_<task>_P<N>.md
+                       [--task T-YYYY-MM-DD-NNN] [--reports-dir <path>]
+                       [--out <path-under-book>] [--loop N] [--window LO-HI]
+```
+
+**Inputs:**
+| Source | Purpose |
+|---|---|
+| `<book>/chapters/ch-NN.md` | Word count (regex-based, like `check_chapter.py`) |
+| `<book>/frozen-lines.json` | Per-chapter frozen-line manifest (optional) |
+| `<book>/ledger.md` | Counts `## Open questions` numbered items |
+| `<reports>/<task>/check_chapter_ch-NN.md` (or `.json`) | P2 check payload (any/all rules can be FAIL) |
+| `<reports>/<task>/book_check.json` | P3 cross-chapter payload |
+| `<reports>/<task>/04_review_<task>.md` | am-review output (counts `### CRITICAL` / `### HIGH` headers) |
+
+**Output:** `share/reports/<task>/02_gate_ch-NN_<task>.md` (overridable via `--out <path>`; the override must resolve under `--book` — defensive guard against misconfigured CI).
+
+**Status logic (verbatim from plan §P6):**
+- `APPROVED` — all checks PASS and review has 0 HIGH/CRITICAL
+- `FIX-LOOP-N` — any check FAIL or any review HIGH (N = `--loop` arg, default 1)
+- `REJECTED` — review has any `### CRITICAL` header
+
+**Exit codes:** 0 = APPROVED, 1 = FIX-LOOP-N or REJECTED, 2 = input error (missing review, missing chapter, `--out` outside `--book`, invalid `--window`).
+
+**Review parsing:** case-sensitive top-of-line `^### CRITICAL$` and `^### HIGH$` headers; sub-issues are every other `^### ` header (case-insensitive on sub-issues; only the exact severity strings are skipped).
+
+**Stdlib-only.** No new dependencies. Forces UTF-8 stdio at the top of the module so `--help` doesn't crash on Windows-cp1256 terminals (P4 #15 / P5 #22 inheritance).
