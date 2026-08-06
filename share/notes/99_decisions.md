@@ -109,3 +109,21 @@ This pre-empts the next person who notices the 	ask_id field exists in the tool 
 **Reversibility:** delete the new ### Runtime contract subsection. ~30 seconds.
 
 **Not done:** the version pin (option 1). Stays available if a real breakage happens.
+## 2026-08-05 — Book-Kit Tool Roadmap (T-2026-08-05-001) — 18 phases approved
+
+**Source:** User directive. Two recommendation lists from past agents (city-of-memories fiction + ai-agents-with-python technical) cross-referenced against `book-kit` v1.1.0 inventory; produced 18-phase roadmap with cumulative ~15-day effort.
+
+**Decision:** Build 18 phases sequentially (lowest-risk first) rather than in parallel. Each phase must pass 6-gate (tests / manual run / lint / frontmatter / docs / commit) before the next starts.
+
+**Phase 9 simplifications locked:**
+- **Exa:** MCP primary + built-in `websearch: "allow"` (dual-wired, already in `~/.config/opencode/opencode.json` at `https://mcp.exa.ai/mcp`)
+- **Firecrawl:** add to global config (remote OAuth URL `https://mcp.firecrawl.dev/v2/mcp-oauth`, key `fc-919e9ffa4d82483b90dbfa434ec4fa46` in `.env.local`)
+- **Brave:** dropped (no free API key)
+- **DuckDuckGo:** thin Python wrapper (`scripts/duckduckgo_search.py` over `webfetch`)
+- **`.env.local` convention** adopted as kit standard
+
+**Book-kg backing:** SQLite (FTS5). 5× faster to ship than Neo4j, identical query API surface, no infra cost.
+
+**Reversibility:** trivial. Each phase is one commit; rollback = revert commit. Plan is at `share/notes/02_plan_T-2026-08-05-001_book-kit-roadmap.md`.
+
+**Ponytail note:** 18 phases not 18 separate kits. Phases 1–8 are script/template changes (kit improvements). Phases 9–14 are external tool integrations (MCPs/CLIs). Phases 15–17 are workflow doc updates. Phase 18 is the only true new infrastructure piece (FastMCP + SQLite). Kept the big lift last so smaller phases establish patterns first.
