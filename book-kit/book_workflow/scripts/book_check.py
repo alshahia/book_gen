@@ -219,6 +219,216 @@ def untranslated_english_ratio(clean_text, code_block=False):
 def word_count(text):
     return len(re.findall(r"\b[\w'\-\u2018\u2019]+\b", text, re.UNICODE))
 
+
+def _force_utf8_stdio():
+    """Reconfigure stdout/stderr to UTF-8.
+
+    P8 inheritance: book_check.py prints Coin arc / Motif arc lines on
+    stderr. Without this, Windows-cp1256 hosts would crash on non-ASCII
+    arrow / em-dash chars in the rendered arc. Mirrors the helper in
+    render_ledger_check.py / index_reports.py / gate_summary.py.
+    """
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure is not None:
+            try:
+                reconfigure(encoding="utf-8")
+            except (ValueError, OSError):
+                pass
+
+
+def parse_bible_anchors(path):
+    """Extract continuity anchors from ``## Continuity anchor`` sections in bible.md.
+
+    Each section contains a markdown table with three columns:
+    ``Keyword``, ``Quote``, ``Scope`` (e.g. ``ch-01..ch-05``). The
+    ``Scope`` column accepts both ASCII hyphen-minus and en-dash
+    (U+2013) per WARN #19 inheritance. Separator rows and rows without
+    a parseable scope pair are silently skipped.
+
+    Returns a list of dicts: ``{keyword, quote, scope_start, scope_end}``.
+    Empty list when the file is missing or has no ``## Continuity anchor``
+    section.
+    """
+    if not path.exists():
+        return []
+    text = read_md(path)
+    anchors: list[dict] = []
+    for m in re.finditer(r"##\s+Continuity anchor\b(.*?)(?=\n## |\Z)", text, re.S | re.I):
+        block = m.group(1)
+        for row in re.finditer(r"^\|\s*([^|]+?)\s*\|\s*([^|]+?)\s*\|\s*([^|]+?)\s*\|\s*$", block, re.M):
+            keyword = row.group(1).strip()
+            quote = row.group(2).strip()
+            scope = row.group(3).strip()
+            if keyword.lower() == "keyword" or set(keyword) <= set("-: "):
+                continue
+            if not keyword:
+                continue
+            scope_match = re.search(
+                r"ch[-\u2013](\d+)\s*(?:\.\.|[-\u2013\u2014])\s*ch[-\u2013](\d+)",
+                scope,
+            )
+            if not scope_match:
+                continue
+            # Strip surrounding ASCII / smart quotes so markdown-table cells
+            # like `"glinted in the light"` resolve to the bare phrase.
+            quote_clean = re.sub(r'^["\u201c\u2018]+|["\u201d\u2019]+$', "", quote).strip()
+            anchors.append({
+                "keyword": keyword,
+                "quote": quote_clean,
+                "scope_start": int(scope_match.group(1)),
+                "scope_end": int(scope_match.group(2)),
+            })
+    return anchors
+
+
+def _check_continuity(book_root, anchors):
+    """For each anchor, verify the keyword appears in every chapter in scope.
+
+    The ``Quote`` column in bible.md is stored for reference but does not
+    have to repeat verbatim across chapters — only the tracked motif
+    (keyword) must persist. This matches the spec example
+    (``ch-01 (introduced) -> ch-03 (mentioned) -> ch-05 (paid)``) where
+    the keyword is what gets carried forward.
+
+    Emits ``Coin arc: ch-XX (...) -> ch-YY (...) -- PASS|FAIL`` lines on
+    stderr (one per anchor). Returns a list of result dicts (also exposed
+    via main()'s JSON output):
+
+        {keyword, quote, scope, arc, status, chapters_missing}
+
+    A chapter's status label is ``(introduced)`` for the first hit,
+    ``(paid)`` for the last, ``(mentioned)`` for middle hits, and
+    ``(missing)`` when the keyword is absent. Single-chapter arcs use
+    ``(solo)``.
+    """
+    chapters_dir = book_root / "chapters"
+    if not chapters_dir.exists():
+        return []
+    results: list[dict] = []
+    for anchor in anchors:
+        keyword = anchor["keyword"]
+        quote = anchor["quote"]
+        start = anchor["scope_start"]
+        end = anchor["scope_end"]
+        in_scope = []
+        for n in range(start, end + 1):
+            cp = chapters_dir / f"ch-{n:02d}.md"
+            if cp.exists():
+                in_scope.append((n, cp))
+        if not in_scope:
+            results.append({
+                "keyword": keyword,
+                "quote": quote,
+                "scope": f"ch-{start:02d}..ch-{end:02d}",
+                "arc": "no chapters in scope",
+                "status": "FAIL",
+                "chapters_missing": [f"ch-{n:02d}" for n in range(start, end + 1)],
+            })
+            continue
+        chapters_missing: list[str] = []
+        arc_parts: list[str] = []
+        n_total = len(in_scope)
+        for i, (n, cp) in enumerate(in_scope):
+            text_lower = read_md(cp).lower()
+            keyword_present = keyword.lower() in text_lower
+            stem = f"ch-{n:02d}"
+            if keyword_present:
+                if n_total == 1:
+                    arc_parts.append(f"{stem} (solo)")
+                elif i == 0:
+                    arc_parts.append(f"{stem} (introduced)")
+                elif i == n_total - 1:
+                    arc_parts.append(f"{stem} (paid)")
+                else:
+                    arc_parts.append(f"{stem} (mentioned)")
+            else:
+                arc_parts.append(f"{stem} (missing)")
+                chapters_missing.append(stem)
+        status = "PASS" if not chapters_missing else "FAIL"
+        results.append({
+            "keyword": keyword,
+            "quote": quote,
+            "scope": f"ch-{start:02d}..ch-{end:02d}",
+            "arc": " -> ".join(arc_parts),
+            "status": status,
+            "chapters_missing": chapters_missing,
+        })
+    return results
+
+
+def parse_tracked_motifs(path):
+    """Extract motifs from ``## Tracked motifs`` block in style-guide.md.
+
+    Each non-empty bullet line becomes one motif. Trailing ``:<reason>``
+    text (if any) is stripped. Returns an empty list when the section or
+    file is missing.
+    """
+    if not path.exists():
+        return []
+    text = read_md(path)
+    m = re.search(r"##\s+Tracked motifs(.*?)(?=\n## |\Z)", text, re.S | re.I)
+    if not m:
+        return []
+    motifs: list[str] = []
+    for line in m.group(1).splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        m2 = re.match(r"^[-*]\s+(.+?)(?:\s*:.*)?$", line)
+        if m2:
+            motifs.append(m2.group(1).strip())
+    return motifs
+
+
+def coin_arc(book_root, motifs):
+    """Per-motif cross-chapter scan.
+
+    For each motif in ``motifs``, walk ``chapters/ch-*.md`` in sorted
+    order and record whether the motif substring (case-insensitive) is
+    present. Emits ``Motif arc: ch-XX (...) -> ch-YY (...) -- PASS|FAIL``
+    lines on stderr (one per motif). Returns a list of dicts:
+
+        {motif, arc, status, chapters_missing}
+
+    Same label scheme as ``_check_continuity``: first / last / middle /
+    single / missing.
+    """
+    chapters_dir = book_root / "chapters"
+    if not chapters_dir.exists() or not motifs:
+        return []
+    chapter_files = sorted(chapters_dir.glob("ch-*.md"))
+    results: list[dict] = []
+    for motif in motifs:
+        arc_parts: list[str] = []
+        chapters_missing: list[str] = []
+        n_total = len(chapter_files)
+        for i, cp in enumerate(chapter_files):
+            text_lower = read_md(cp).lower()
+            present = motif.lower() in text_lower
+            stem = cp.stem
+            if present:
+                if n_total == 1:
+                    arc_parts.append(f"{stem} (solo)")
+                elif i == 0:
+                    arc_parts.append(f"{stem} (introduced)")
+                elif i == n_total - 1:
+                    arc_parts.append(f"{stem} (paid)")
+                else:
+                    arc_parts.append(f"{stem} (mentioned)")
+            else:
+                arc_parts.append(f"{stem} (missing)")
+                chapters_missing.append(stem)
+        status = "PASS" if not chapters_missing else "FAIL"
+        results.append({
+            "motif": motif,
+            "arc": " -> ".join(arc_parts),
+            "status": status,
+            "chapters_missing": chapters_missing,
+        })
+    return results
+
+
 def main(argv=None):
     root = Path(argv[0] if argv else ".")
     if root.name == "chapters": root = root.parent
@@ -381,6 +591,27 @@ def main(argv=None):
             print(f"info: cross_ref.py not importable ({e}); skipping cross_ref check",
                   file=sys.stderr)
 
+    # ---- continuity check (P8) ----
+    # Reads `## Continuity anchor` blocks from bible.md (one row per anchor)
+    # and `## Tracked motifs` from style-guide.md. For each anchor / motif,
+    # walks the chapters in scope and emits a `Coin arc: ... -- PASS|FAIL`
+    # line on stderr. Failures contribute to the FAIL verdict.
+    _force_utf8_stdio()
+    bible_anchors = parse_bible_anchors(root / "bible.md")
+    continuity_results = _check_continuity(root, bible_anchors)
+    style_motifs = parse_tracked_motifs(root / "style-guide.md")
+    coin_arc_results = coin_arc(root, style_motifs)
+    for r in continuity_results:
+        marker = "PASS" if r["status"] == "PASS" else "FAIL"
+        print(f"Coin arc: {r['arc']} — {marker}", file=sys.stderr)
+    for r in coin_arc_results:
+        marker = "PASS" if r["status"] == "PASS" else "FAIL"
+        print(f"Motif arc: {r['arc']} — {marker}", file=sys.stderr)
+    if any(r["status"] == "FAIL" for r in continuity_results):
+        failed = True
+    if any(r["status"] == "FAIL" for r in coin_arc_results):
+        failed = True
+
     # ---- summary ----
     def _ratio_out_of_band(fname, v):
         if v["source_ratio"] is None:
@@ -405,6 +636,8 @@ def main(argv=None):
             "untranslated_english": sum(1 for v in result.values() if v["untranslated_ratio"] > UNTRANSLATED_TOLERANCE),
             "glossary_drift": sum(1 for v in result.values() if v.get("glossary_drift") and not v.get("glossary_drift_exempt")),
             "cross_ref": len(cross_ref_broken),
+            "continuity": sum(1 for r in continuity_results if r["status"] == "FAIL"),
+            "coin_arc": sum(1 for r in coin_arc_results if r["status"] == "FAIL"),
         },
     }
 
@@ -446,7 +679,9 @@ def main(argv=None):
     print(json.dumps({"summary": summary, "chapters": result, "progress": progress,
                       "cross_ref": {"broken": cross_ref_broken,
                                     "resolved": cross_ref_resolved,
-                                    "total": cross_ref_total}},
+                                    "total": cross_ref_total},
+                      "continuity": continuity_results,
+                      "coin_arc": coin_arc_results},
                      ensure_ascii=False, sort_keys=True))
     print(f"book_check: {'FAIL' if failed else 'PASS'} ({len(result)} chapters, {len(progress)} progress entries)", file=sys.stderr)
     return 1 if failed else 0
@@ -525,6 +760,42 @@ if __name__ == "__main__":
             assert data["chapters"]["ch-a.md"].get("glossary_drift_exempt") is False
             assert data["chapters"]["ch-b.md"].get("glossary_drift_exempt") is True
             assert data["chapters"]["ch-e.md"].get("glossary_drift") == ["المصطلحالفريد"]
+        # self-check #5: P8 continuity + coin_arc (bible.md anchors + style-guide motifs)
+        with tempfile.TemporaryDirectory() as td5:
+            r5 = Path(td5)
+            (r5 / "chapters").mkdir()
+            (r5 / "chapters" / "ch-01.md").write_text(
+                "# T\n\nThe silver coin glinted in the morning light.\n", encoding="utf-8",
+            )
+            (r5 / "chapters" / "ch-02.md").write_text(
+                "# T\n\nHe turned the silver coin over in his palm.\n", encoding="utf-8",
+            )
+            (r5 / "chapters" / "ch-03.md").write_text(
+                "# T\n\nShe paid the merchant with a silver coin at last.\n", encoding="utf-8",
+            )
+            (r5 / "bible.md").write_text(
+                "## Continuity anchor\n\n"
+                "| Keyword | Quote | Scope |\n"
+                "|---|---|---|\n"
+                "| silver coin | glinted in the morning light | ch-01..ch-03 |\n",
+                encoding="utf-8",
+            )
+            (r5 / "style-guide.md").write_text(
+                "## Tracked motifs\n\n- compass\n- locket\n", encoding="utf-8",
+            )
+            import io, contextlib as _cl
+            buf5 = io.StringIO()
+            with _cl.redirect_stdout(buf5):
+                ec = main([str(r5)])
+            data5 = json.loads(buf5.getvalue())
+            # continuity: silver coin + quote present in all 3 chapters -> PASS
+            assert len(data5["continuity"]) == 1, f"expected 1 anchor, got {data5['continuity']}"
+            assert data5["continuity"][0]["status"] == "PASS"
+            assert data5["summary"]["checks"]["continuity"] == 0
+            # coin_arc: compass + locket absent from every chapter -> both FAIL
+            assert len(data5["coin_arc"]) == 2, f"expected 2 motifs, got {data5['coin_arc']}"
+            assert data5["summary"]["checks"]["coin_arc"] == 2
+            assert all(r["status"] == "FAIL" for r in data5["coin_arc"])
         print("self-check OK")
         sys.exit(0)
     sys.exit(main(sys.argv[1:]))

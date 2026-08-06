@@ -48,6 +48,72 @@ python book_check.py <project-root>
 
 **Exit codes:** 0 = pass, 1 = at least one failure.
 
+### Continuity check (P8)
+
+In addition to the per-chapter checks above, `book_check.py` runs two
+cross-chapter continuity detectors that read the book's narrative ledger
+files. Both are fail-fast: any missing motif or anchor contributes to
+the FAIL verdict and emits a `Coin arc:` / `Motif arc:` line on stderr.
+
+**`## Continuity anchor` (from `bible.md`)** — each row is a tracked
+motif that must persist across the chapters named in `Scope`. Rows use
+the format `| Keyword | Quote | Scope |` with `Scope` written as
+`ch-XX..ch-YY` (the chapter separator accepts ASCII `-` or en-dash
+U+2013 per WARN #19 inheritance). The `Quote` cell may include
+surrounding ASCII / smart quotes; both styles are stripped before
+matching.
+
+```sh
+## bible.md
+## Continuity anchor
+
+| Keyword | Quote | Scope |
+|---|---|---|
+| silver coin | "glinted in the morning light" | ch-01..ch-05 |
+| locket | the locket her mother left her | ch-02..ch-04 |
+```
+
+**`## Tracked motifs` (from `style-guide.md`)** — each bullet under the
+section is a motif name. Trailing `:<reason>` text after the name is
+stripped. The detector scans every `chapters/ch-*.md` (sorted) for the
+substring (case-insensitive).
+
+```sh
+## style-guide.md
+## Tracked motifs
+
+- silver coin: introduced ch-01, paid ch-05
+- compass
+```
+
+**Arc labels per chapter:** `(introduced)` for the first hit, `(paid)`
+for the last, `(mentioned)` for middle hits, `(solo)` for single-chapter
+arcs, `(missing)` when the keyword is absent. Stderr output (Unicode
+em-dash):
+
+```
+Coin arc: ch-01 (introduced) -> ch-03 (mentioned) -> ch-05 (paid) - PASS
+Motif arc: ch-01 (introduced) -> ch-02 (mentioned) -> ch-03 (paid) - PASS
+```
+
+**JSON payload:** the top-level payload gains two new keys when chapters
+exist:
+
+| Key | Shape |
+|---|---|
+| `continuity` | `[{keyword, quote, scope, arc, status, chapters_missing}, ...]` |
+| `coin_arc` | `[{motif, arc, status, chapters_missing}, ...]` |
+
+The `summary.checks` block also gains `continuity` and `coin_arc`
+counters (count of FAIL rows each).
+
+**Stdlib-only.** No new dependencies. Forces UTF-8 stdio before any
+`Coin arc:` / `Motif arc:` print so non-ASCII arrow + em-dash chars
+do not crash on Windows-cp1256 hosts (P4 #15 / P5 #22 inheritance).
+Missing `bible.md` or missing `## Continuity anchor` section degrades
+silently to an empty `continuity` list — same fall-through as the
+existing `glossary_terms` / `parse_style_guide_tolerances` helpers.
+
 ---
 
 ## check_chapter.py
