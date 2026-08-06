@@ -276,7 +276,112 @@ def test_happy_path_all_pass(tmp_project):
     assert not fail, f"unexpected FAIL on happy path: {fail}; evidences: {[(r.name, r.evidence) for r in results]}"
     assert not warn, f"unexpected WARN on happy path: {warn}; evidences: {[(r.name, r.evidence) for r in results]}"
 
-# Total: 10 tests above. The CLI smoke test (argparse + --json + main()
+
+# ---------------------------------------------------------------------------
+# 11) bible.md applicability — ch-01 < applies_from → countdown skipped
+# ---------------------------------------------------------------------------
+
+def test_rule_skipped_when_chapter_before_applies_from(tmp_project):
+    """A bible with `Countdown ≥1 | ch-03` resolves ``applies_from=3``;
+    running the rule against ``ch-01.md`` should PASS with skip-evidence
+    ``"chapter ch-01 < applies_from=3"`` — i.e. the rule recognises the
+    applicability table and refuses to run on a setup chapter.
+
+    Mirrors ``parse_rule_applicability()`` + ``countdown()`` integration
+    directly; doesn't go through the CLI / book-root resolver (the
+    ``_resolve_config_paths`` path is covered by the manual smoke in
+    the acceptance criteria).
+    """
+    bible_text = (
+        "| Rule | Applies from | Reason | Supersedes |\n"
+        "| --- | --- | --- | --- |\n"
+        "| Countdown ≥1 | ch-03 | Setup chapters 01–02 | — |\n"
+    )
+    bible_path = tmp_project / "bible.md"
+    bible_path.write_text(
+        "# Book Bible\n\n## Rule applicability\n\n" + bible_text + "\n",
+        encoding="utf-8",
+    )
+    applicable = cc.parse_rule_applicability(bible_path)
+    assert applicable == {"Countdown ≥1": 3}, (
+        f"expected single row resolved to {{'Countdown ≥1': 3}}; got {applicable!r}"
+    )
+
+    chapter = (
+        "# Chapter 1\n\n"
+        "نص عربي يتحدث عن تهيئة المشهد دون استخدام الكلمات المتفق عليها لاحقا.\n"
+    )
+    chapter_path = tmp_project / "chapters" / "ch-01.md"
+    chapter_path.parent.mkdir(parents=True, exist_ok=True)
+    chapter_path.write_text(chapter, encoding="utf-8")
+
+    applies_from = applicable.get("Countdown ≥1", 3)
+    results = cc.countdown(
+        chapter, chapter_path=str(chapter_path),
+        tokens=["بقي", "لم يبق"], applies_from=applies_from,
+    )
+    assert len(results) == 1, f"expected one CheckResult; got {len(results)}"
+    r = results[0]
+    assert r.name == "countdown", f"expected name='countdown'; got {r.name!r}"
+    assert r.status == "PASS", f"expected PASS (skip path); got {r.status}; evidence={r.evidence}"
+    assert "chapter ch-01 < applies_from=3" in r.evidence, (
+        f"expected skip-evidence 'chapter ch-01 < applies_from=3'; got {r.evidence!r}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# 12) bible.md applicability — ch-05 >= applies_from → countdown runs
+# ---------------------------------------------------------------------------
+
+def test_rule_applied_when_chapter_at_or_after_applies_from(tmp_project):
+    """Same bible, this time against ``ch-05.md`` — the chapter is at/after
+    ``applies_from=3`` so the rule actually runs. With zero countdown tokens
+    in the chapter body the rule must FAIL (the rule verdict, NOT the
+    skip-evidence) — proving the applicability table didn't accidentally
+    short-circuit the rule on every chapter.
+    """
+    bible_text = (
+        "| Rule | Applies from | Reason | Supersedes |\n"
+        "| --- | --- | --- | --- |\n"
+        "| Countdown ≥1 | ch-03 | Setup chapters 01–02 | — |\n"
+    )
+    bible_path = tmp_project / "bible.md"
+    bible_path.write_text(
+        "# Book Bible\n\n## Rule applicability\n\n" + bible_text + "\n",
+        encoding="utf-8",
+    )
+    applicable = cc.parse_rule_applicability(bible_path)
+    assert applicable == {"Countdown ≥1": 3}
+
+    # Chapter 5 contains NO countdown tokens (`بقي` / `لم يبق`) at all —
+    # not even inside a quoted narration. So when the rule fires it must
+    # FAIL because total < min_occurrences=1.
+    chapter = (
+        "# Chapter 5\n\n"
+        "نص عربي يتحدث عن المشروع دون استخدام أي من الكلمات المتفق عليها لاحقا.\n"
+    )
+    chapter_path = tmp_project / "chapters" / "ch-05.md"
+    chapter_path.parent.mkdir(parents=True, exist_ok=True)
+    chapter_path.write_text(chapter, encoding="utf-8")
+
+    applies_from = applicable.get("Countdown ≥1", 3)
+    results = cc.countdown(
+        chapter, chapter_path=str(chapter_path),
+        tokens=["بقي", "لم يبق"], applies_from=applies_from,
+    )
+    r = results[0]
+    # The rule actually runs (not the skip-evidence).
+    assert "< applies_from" not in r.evidence, (
+        f"expected rule to RUN, not skip; got skip-evidence {r.evidence!r}"
+    )
+    # No countdown tokens in the chapter → FAIL on the rule itself.
+    assert r.status == "FAIL", f"expected FAIL (no tokens); got {r.status}; evidence={r.evidence}"
+    assert "ch-05" in r.evidence, f"expected ch-05 in evidence; got {r.evidence!r}"
+    assert "≥1 countdown token" in r.evidence, (
+        f"expected the rule's own verdict text in evidence; got {r.evidence!r}"
+    )
+
+# Total: 12 tests above. The CLI smoke test (argparse + --json + main()
 # integration) is verified manually in the acceptance criteria
 # (`python check_chapter.py ...`); the 8 rule-level tests above use the
 # same internal functions `main()` calls, so the wiring is exercised

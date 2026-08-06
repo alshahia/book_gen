@@ -11,8 +11,13 @@ boundaries — both scripts must stay runnable standalone, and a shared-import
 coupling would make future refactors slower.
 
 CLI:
-    check_chapter.py <chapter.md> [--beat] [--json] [--config <style-guide.md>]
+    check_chapter.py <chapter.md> [--beat] [--json] [--config <style-guide.md|book-root>]
                          [--task <task-id>] [--report-dir <root>]
+
+``--config`` accepts either a path to ``style-guide.md`` (P2-era behavior)
+or a book-root directory containing both ``style-guide.md`` and ``bible.md``
+(P5 — bible's ``## Rule applicability`` table gates the ``Countdown ≥1``
+rule's ``applies_from``).
 
 Exit: 0 if no FAIL, 1 if any FAIL, 2 if input is missing.
 
@@ -151,6 +156,80 @@ def read_style_guide(path):
                        if x.strip() and not x.lstrip().startswith("#")]
             if section:
                 out["forbidden"] = section
+    return out
+
+
+# ---------------------------------------------------------------------------
+# bible.md parser — `## Rule applicability` table (P5)
+# ---------------------------------------------------------------------------
+
+def _resolve_config_paths(config_arg):
+    """Decide which files ``--config`` refers to.
+
+    Returns a ``(style_guide_path, bible_path)`` tuple. Either may be ``None``
+    when the file is absent — both parser functions handle that gracefully.
+
+    Three cases (P5 contract):
+      - ``None`` / non-existent path — ``args.config`` was not supplied, or
+        the supplied path doesn't exist on disk. Both parsers fall through
+        to defaults; behavior matches the P2-era ``check_chapter.py``.
+      - File path — caller pointed at ``style-guide.md`` directly (the
+        P2-era invocation). ``bible.md`` is not consulted; the applicability
+        table is empty, so ``countdown`` falls back to ``applies_from=3``
+        (preserved back-compat default).
+      - Directory path — caller pointed at a book root. We look inside for
+        both ``style-guide.md`` and ``bible.md`` and parse whichever exist.
+        This is the new P5 dispatch hook.
+    """
+    if config_arg is None:
+        return None, None
+    p = Path(config_arg)
+    if not p.exists():
+        return None, None
+    if p.is_file():
+        return p, None
+    if p.is_dir():
+        sg = p / "style-guide.md"
+        bb = p / "bible.md"
+        return (
+            sg if sg.exists() else None,
+            bb if bb.exists() else None,
+        )
+    return None, None
+
+
+def parse_rule_applicability(path):
+    """Read the ``## Rule applicability`` table from ``bible.md``.
+
+    Returns ``dict[rule_name, applies_from_chapter_number]`` mirroring the
+    ``Applies from`` column. Example::
+
+        { "Countdown ≥1": 3, "Speaker tags": 5 }
+
+    Returns ``{}`` when the path is ``None``, the file is absent, or the
+    table section is missing. Defensive default mirrors ``render_ledger_check`` —
+    if the bible doesn't carry the table, the rule runs as if the row were
+    never written.
+    """
+    out: dict[str, int] = {}
+    if path is None or not Path(path).exists():
+        return out
+    text = read_md(Path(path))
+    m = re.search(r"## Rule applicability(.*?)(?=\n## |\Z)", text, re.S | re.I)
+    if not m:
+        return out
+    # Match `| <Rule Name> | ch-NN | ... |`. The header row (`| Rule |` …)
+    # and separator row (`| --- |` …) carry no `ch-NN` cell and so are skipped
+    # by this regex naturally; we explicitly strip whitespace + a stray HTML
+    # comment that the template carries between the table and the next section.
+    for rule_name, ch_str in re.findall(
+        r"\|\s*([^|\n]+?)\s*\|\s*ch-(\d+)\s*\|",
+        m.group(1),
+    ):
+        rule_name = rule_name.strip()
+        if not rule_name or rule_name.lower() == "rule":
+            continue
+        out[rule_name] = int(ch_str)
     return out
 
 
@@ -324,9 +403,11 @@ def _chapter_number_from_path(path):
 def countdown(chapter_md, chapter_path=None, min_occurrences=1, applies_from=3, tokens=None):
     """Only run when ``ch-NN`` chapter number ≥ ``applies_from``.
 
-    bible.md applicability table integration lands in P5 — for now, the
-    threshold is hard-coded to ``applies_from=3`` (ch-03 is the first chapter
-    where the existing countdown tokens are expected).
+    The default ``applies_from=3`` is preserved as a back-compat backstop for
+    direct callers (e.g. the test helper ``_results_for``). When invoked via
+    ``run_all_checks()`` / the CLI ``--config`` path, ``applies_from`` is
+    resolved from the ``## Rule applicability`` table in ``bible.md`` —
+    see ``parse_rule_applicability()`` and the P5 dispatch.
     """
     if tokens is None:
         tokens = DEFAULT_COUNTDOWN_TOKENS
@@ -407,19 +488,30 @@ def sentence_length(chapter_md, target_median=22):
 # Orchestration
 # ---------------------------------------------------------------------------
 
-def run_all_checks(chapter_path, config):
+def run_all_checks(chapter_path, config, applicability=None):
     """Run all eight checks against the chapter file at ``chapter_path``.
 
     ``config`` is the dict produced by ``read_style_guide``.
+    ``applicability`` is the dict produced by ``parse_rule_applicability`` —
+    empty when ``bible.md`` is absent or has no ``## Rule applicability``
+    section. The ``Countdown ≥1`` row's chapter number overrides the
+    runtime ``applies_from`` default (3) when present; when absent,
+    the default is preserved so a book whose ``bible.md`` doesn't carry
+    the table still gets the P2-era behavior.
     """
     text = read_md(chapter_path)
+    if applicability is None:
+        applicability = {}
+    applies_from = applicability.get("Countdown ≥1", 3)
     results: list[CheckResult] = []
     results.extend(word_count_per_beat(text, config["window"]))
     results.extend(banned_patterns(text, config["forbidden"]))
     results.extend(quote_pair_balance(text))
     results.extend(dialogue_own_line(text))
     results.extend(closing_hook(text))
-    results.extend(countdown(text, chapter_path=chapter_path, tokens=config["countdown_tokens"]))
+    results.extend(countdown(text, chapter_path=chapter_path,
+                              tokens=config["countdown_tokens"],
+                              applies_from=applies_from))
     results.extend(arabic_punctuation(text))
     results.extend(sentence_length(text))
     return results
@@ -468,7 +560,7 @@ def main(argv=None):
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("chapter", type=Path, help="path to ch-NN.md (or other chapter file)")
     p.add_argument("--config", type=Path, default=None,
-                   help="path to style-guide.md (frontmatter + Forbidden patterns section)")
+                   help="path to style-guide.md (or a book-root containing both style-guide.md and bible.md)")
     p.add_argument("--json", action="store_true",
                    help="emit JSON to stdout instead of writing a markdown report")
     p.add_argument("--task", type=str, default="unknown",
@@ -482,8 +574,10 @@ def main(argv=None):
         print(f"check_chapter: not a file: {args.chapter}", file=sys.stderr)
         return 2
 
-    config = read_style_guide(args.config)
-    results = run_all_checks(args.chapter, config)
+    style_guide_path, bible_path = _resolve_config_paths(args.config)
+    config = read_style_guide(style_guide_path)
+    applicability = parse_rule_applicability(bible_path)
+    results = run_all_checks(args.chapter, config, applicability)
     chapter_label = _chapter_label(args.chapter)
 
     if args.json:

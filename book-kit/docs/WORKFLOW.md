@@ -168,6 +168,31 @@ master surfaces to the user.
 
 ---
 
+## Mid-book rule change
+
+When a style-guide rule is amended mid-stream (e.g. a writer decides that
+*Speaker tags* should apply from `ch-05` instead of being a free-form voice
+choice), the change is recorded as a single **append** to the book's
+`bible.md` — specifically the `## Rule applicability` table shipped in the
+template (`book-kit/book_workflow/book-agents/templates/bible.md`). Each
+amendment is one new row; never edit an existing row out of order (the
+table is append-only per the bible's own top-line contract).
+
+`check_chapter.py --config <book-root>` reads that table and skips the
+amended rule on chapters earlier than the row's `Applies from` chapter. So
+if a writer amends *Speaker tags* at the end of `ch-04`, the new row's
+`Applies from: ch-05` causes `check_chapter.py` to PASS-with-skip-evidence
+for ch-05 onwards in chapters `ch-01..ch-04`, and to actually run the rule
+from `ch-05` forward — closing the per-book-rewrite gap that used to
+require touching every prior chapter by hand.
+
+When no `bible.md` row matches a rule (book predates the table, or the
+table is absent), `check_chapter.py` falls back to the P2-era default
+(`countdown applies_from=3`) so older books keep running with their
+existing chapter gating.
+
+---
+
 ## Output paths
 
 | File | Owner | Purpose |

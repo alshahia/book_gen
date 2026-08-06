@@ -13,6 +13,17 @@ Cumulative, append-only (in commit order, even across parallel chapters). Every 
 ## Voice rules (quick reference — full detail in style-guide.md)
 - [rule]
 
+## Rule applicability
+
+A cumulative, append-only ledger of when each voice / structure rule begins to apply. `check_chapter.py` reads this table when `--config` points at a book root; rules whose `Applies from` chapter has not yet been reached are skipped (with PASS + evidence) so the early chapters of a new book are not flagged against rules the writer has not yet adopted. When a rule's chapter number changes mid-book, append a new row — do NOT rewrite the old row (the ledger stays append-only per the bible's own top-line contract).
+
+| Rule | Applies from | Reason | Supersedes |
+| --- | --- | --- | --- |
+| Countdown ≥1 | ch-03 | Setup chapters 01–02 establish the narrator's vantage; the rule lands once the scene has settled. | — |
+| Speaker tags | ch-05 | Style-guide amended YYYY-MM-DD to require explicit speaker labels on every dialogue beat. | — |
+
+<!-- New rows go ABOVE this line. Keep the table column order. `Supersedes` is the prior rule label that this row replaces (e.g. for a style-guide amendment), or `—` for first-issue rules. -->
+
 ## Characters (fiction/hybrid only)
 
 <!-- REQUIRED: keep the Characters section available even when this is a nonfiction book. build_exports.py reads ### names from here for index projection. -->
