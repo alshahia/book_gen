@@ -6,6 +6,7 @@ CLI::
                            --review <share/reports/04_review_*.md>
                            [--task <task-id>] [--reports-dir <path>]
                            [--out <path-under-book>] [--loop N]
+                           [--reviewer-invocations N]
 
 Reads (in order):
 
@@ -32,6 +33,15 @@ A path outside ``--book`` is rejected (defensive guard; P4 #14 inheritance).
 
 Review parsing: counts ``### CRITICAL`` and ``### HIGH`` headers
 (case-sensitive, top-of-line) and the ``### `` sub-issues under each.
+
+Reviewer invocations (P17 addition): ``--reviewer-invocations N`` records
+how many times the book-reviewer sub-agent was called for this chapter
+in the gate artifact's ``Reviewer invocations: N`` line.  Default is 1
+(unsplit chapter; one reviewer call).  When the orchestrator splits the
+chapter into chunks at H3 boundaries (see ``book-gen-orchestrator/SKILL.md``
+Phase 7 splitting strategy), or falls back through the 1500 -> 1000 -> 600
+word retry ladder, N reflects the total invocation count (1 success, or
+1 + N retries).  See plan section P17 for the full contract.
 
 Exit codes:
   * 0  APPROVED
@@ -358,12 +368,19 @@ def _summarize_review(critical, high, sub_issues):
 def render_gate(chapter_label, *, word_count, window,
                  book_check_status, book_check_evidence,
                  reviewer_status, reviewer_evidence,
+                 reviewer_invocations,
                  frozen_count, frozen_lines,
                  open_questions, status):
     """Render the canonical gate-artifact markdown block.
 
     Output is byte-stable for a given input (no timestamps, no random
     ordering) so reviewers can diff successive runs.
+
+    The ``reviewer_invocations`` field (P17) records how many times the
+    book-reviewer sub-agent was invoked for this chapter.  1 for a
+    single-pass review; N when the chapter was split into chunks or
+    the orchestrator retried after a truncated/empty response per the
+    splitting strategy + fallback protocol in Phase 7.
     """
     lo, hi = window
     lines: list[str] = []
@@ -375,6 +392,7 @@ def render_gate(chapter_label, *, word_count, window,
     bc_ev = f" {book_check_evidence}" if book_check_evidence else ""
     lines.append(f"Book-check: {bc}{bc_ev}")
     lines.append(f"Reviewer: {reviewer_status} {reviewer_evidence}".rstrip())
+    lines.append(f"Reviewer invocations: {reviewer_invocations}")
     if frozen_count == 0:
         lines.append("Frozen lines touched: 0 (none declared)")
     else:
@@ -426,6 +444,14 @@ def main(argv=None):
     p.add_argument("--loop", type=int, default=1,
                    help="fix-loop attempt count (default: 1). Embedded in "
                         "the FIX-LOOP-N status when applicable.")
+    p.add_argument("--reviewer-invocations", type=int, default=1,
+                   help="number of times the book-reviewer sub-agent was "
+                        "invoked for this chapter (P17). Default: 1 "
+                        "(single-pass review). When the orchestrator "
+                        "splits the chapter into chunks at H3 boundaries, "
+                        "or runs the 1500 -> 1000 -> 600-word fallback "
+                        "ladder after a truncated/empty response, this "
+                        "is the total invocation count (1 + N retries).")
     p.add_argument("--window", type=str, default="600-750",
                    help="beat word window lo-hi (default: 600-750, matches "
                         "the check_chapter.py default for Arabic fiction)")
@@ -490,6 +516,7 @@ def main(argv=None):
         book_check_evidence=bc_evidence,
         reviewer_status=rv_status,
         reviewer_evidence=rv_evidence,
+        reviewer_invocations=args.reviewer_invocations,
         frozen_count=frozen_count,
         frozen_lines=frozen_lines,
         open_questions=open_q,
@@ -521,7 +548,8 @@ def main(argv=None):
 
     print(
         f"gate_summary: wrote {out_path} (status={status}, "
-        f"words={n_words}, critical={critical}, high={high})",
+        f"words={n_words}, critical={critical}, high={high}, "
+        f"reviewer_invocations={args.reviewer_invocations})",
         file=sys.stderr,
     )
 

@@ -225,12 +225,37 @@ Before dispatching `am-review` for a `drafted` chapter, master (or `am-coder` in
 python book-kit/book_workflow/scripts/gate_summary.py \
     --book books/<slug> --chapter ch-NN \
     --review share/reports/04_review_T-<...>_P<...>.md \
-    --task T-<YYYY-MM-DD-NNN>
+    --task T-<YYYY-MM-DD-NNN> \
+    [--reviewer-invocations N]
 ```
 
-The script reads the P2 `check_chapter_ch-NN.md` (or `.json`), the P3 `book_check.json`, and the reviewer's last `04_review_*.md` (default task `T-2026-08-05-001`). It writes `share/reports/<task>/02_gate_ch-NN_<task>.md` with the canonical 5-field block (`Word count`, `Book-check`, `Reviewer`, `Frozen lines touched`, `Open questions`) and a status line of `APPROVED`, `FIX-LOOP-N`, or `REJECTED` per plan §P6. Exit codes: 0 = APPROVED, 1 = FIX-LOOP-N or REJECTED, 2 = input error. For the first review pass the `04_review_*.md` may not exist yet — pass `--review <path-to-P3-book-check-or-stub>` or use the script's n/a fallback (the gate artifact is informational; the reviewer's own verdict is authoritative for the ledger update).
+The script reads the P2 `check_chapter_ch-NN.md` (or `.json`), the P3 `book_check.json`, and the reviewer's last `04_review_*.md` (default task `T-2026-08-05-001`). It writes `share/reports/<task>/02_gate_ch-NN_<task>.md` with the canonical 6-field block (`Word count`, `Book-check`, `Reviewer`, `Reviewer invocations`, `Frozen lines touched`, `Open questions`) and a status line of `APPROVED`, `FIX-LOOP-N`, or `REJECTED` per plan §P6. Exit codes: 0 = APPROVED, 1 = FIX-LOOP-N or REJECTED, 2 = input error. For the first review pass the `04_review_*.md` may not exist yet -- pass `--review <path-to-P3-book-check-or-stub>` or use the script's n/a fallback (the gate artifact is informational; the reviewer's own verdict is authoritative for the ledger update).
+
+`--reviewer-invocations N` records how many times the book-reviewer sub-agent was invoked for this chapter (P17). Default is 1 for a single-pass review. When the splitting strategy below fires (chapter > 2000 words, split into N chunks at H3 boundaries) or the fallback protocol retries through the 1500 -> 1000 -> 600-word ladder after a truncated/empty response, N is the total invocation count (1 success, or 1 + N retries). Master computes N from the chunking run + fallback attempts and passes it on the CLI; the artifact records N verbatim so downstream consumers can see how much review budget the chapter consumed.
 
 For technical books with code listings, master should also re-run `python book-kit/book_workflow/scripts/check_chapter.py chapters/ch-NN.md --check-imports --json` so the gate bundle carries the `check_imports` row alongside the eight rule-based checks. The P14 `pin_deps.py` step in Phase 6 guarantees the `<book>/chapters/code/ch-NN/uv.lock` is on disk; the `--check-imports` row is FAIL only when a chapter imports a package that `uv.lock` does not pin, so missing-dep chapters surface as a developer-visible defect before the reviewer sees them. For prose books (no `chapters/code/` directory) this flag is a no-op and the row reports PASS-with-skip evidence.
+
+### Splitting strategy (P17)
+
+Long chapters overflow the reviewer's prompt budget. When `chapter_word_count > 2000`, master splits the chapter into N review-chunks before dispatching `am-review`. The algorithm:
+
+1. **Boundary detection** -- split the chapter at H3 headings (lines beginning with `### `). The H3 line stays attached to the section it introduces. A chapter with no H3 boundaries falls back to paragraph splitting; an oversized single paragraph falls back to a word-window split.
+2. **Grouping** -- greedily group consecutive sections into chunks where each chunk's total word count stays under `max_tokens=800`. Flush the current chunk whenever adding the next section would push it over the budget. The first chunk absorbs any pre-H3 content (title, intro paragraph, top-level H2 header).
+3. **Prompt shape** -- each chunk gets a compact prompt: "Review this `~800`-token slice for: [checklist from style-guide.md + bible.md continuity anchors]; your output is capped at `400` tokens." The checklist is identical across chunks so findings are comparable.
+4. **Concatenation** -- master concatenates the per-chunk findings into one consolidated review report (`share/reports/04_book-review_<task-id>_ch-<NN>_<pass>.md`). Duplicates are collapsed by section (same H3 heading, same finding class). The consolidated report is what advances the chapter in the ledger.
+
+The chunk count `N` is recorded in the gate artifact as `Reviewer invocations: N` (see `--reviewer-invocations` flag above). The chunking algorithm has a unit-test reference at `book-kit/tests/test_gate_summary.py::chunk_for_review` (P17) -- the 3000-word `tests/fixtures/long-chapter.md` fixture (12 H3 sections) splits into exactly 4 chunks via this algorithm.
+
+### Fallback protocol (P17)
+
+When `am-review` returns a truncated or empty response on a given chunk, master retries with a smaller chunk size. The retry ladder:
+
+1. First attempt: split at 800 tokens per chunk (default).
+2. If the reviewer returns `output truncated` or empty for ANY chunk, retry with `max_tokens=1500` (relaxed), then `1000` (medium), then `600` (conservative). The retry continues until the reviewer produces a complete response or the budget is exhausted.
+3. Each retry counts as one additional invocation. The total invocation count passed to `--reviewer-invocations` is `1` (success) or `1 + N_retries` (with fallback ladder).
+4. If all three fallback retries fail, the chapter is marked `REJECTED` with the last error verbatim in the review report and the gate artifact records the full invocation count so the user can see the chapter consumed the maximum review budget.
+
+Master MUST NOT silently swallow truncation. Any truncated response on any chunk is a gate failure that triggers the fallback ladder. The `Reviewer invocations: N` line in the gate artifact is the audit trail for how much budget the chapter consumed -- a chapter that always needs the maximum retries is a signal to revisit the writer's prose density before the next chapter.
 
 ### Branch A — Translation mode (intake §10 `Is translation? = yes` AND `source-map.md` present)
 

@@ -573,9 +573,12 @@ build_date: 2026-08-08
 
 Per-chapter gate artifact emitter. Reads the P2 `check_chapter` output,
 the P3 `book_check.py` output, the book's `frozen-lines.json` and
-`ledger.md`, plus the latest `04_review_*.md`, and renders a 5-field
-gate summary (`Word count`, `Book-check`, `Reviewer`, `Frozen lines
-touched`, `Open questions`) into `share/reports/<task>/02_gate_ch-NN_<task>.md`.
+`ledger.md`, plus the latest `04_review_*.md`, and renders a 6-field
+gate summary (`Word count`, `Book-check`, `Reviewer`, `Reviewer invocations`,
+`Frozen lines touched`, `Open questions`) into `share/reports/<task>/02_gate_ch-NN_<task>.md`.
+The `Reviewer invocations` field (P17) records how many times the
+book-reviewer sub-agent was invoked for the chapter (1 by default; N when
+the orchestrator splits the chapter into chunks or runs the fallback ladder).
 Wired into the orchestrator's Phase 7 (see `agents_manager/book-gen-orchestrator/SKILL.md`).
 
 **Usage:**
@@ -583,7 +586,8 @@ Wired into the orchestrator's Phase 7 (see `agents_manager/book-gen-orchestrator
 python gate_summary.py --book books/<slug>/ --chapter ch-NN \
                        --review share/reports/04_review_<task>_P<N>.md
                        [--task T-YYYY-MM-DD-NNN] [--reports-dir <path>]
-                       [--out <path-under-book>] [--loop N] [--window LO-HI]
+                       [--out <path-under-book>] [--loop N]
+                       [--reviewer-invocations N] [--window LO-HI]
 ```
 
 **Inputs:**

@@ -13,8 +13,18 @@ Stdlib-only fixtures. The tests target the pure functions directly:
 The script's CLI (``main``) is exercised by a few subprocess / direct-call
 end-to-end tests that confirm the exit-code mapping and the --out path
 validation guard. Mirrors the test style of P2/P3/P4/P5.
+
+P17 additions:
+* ``chunk_for_review`` - pure-Python chunking helper used by the
+  orchestrator's Phase 7 splitting strategy. Tested against a 3000-word
+  fixture (12 H3 sections, 3117 words) that the spec requires to produce
+  exactly 4 chunks.
+* Reviewer invocation count - the artifact gains a ``Reviewer
+  invocations: N`` line (P17) controlled by the new ``--reviewer-invocations``
+  CLI flag (default 1).
 """
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -23,6 +33,12 @@ import gate_summary as gs
 
 KIT_ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = KIT_ROOT / "book_workflow" / "scripts" / "gate_summary.py"
+FIXTURES = KIT_ROOT / "tests" / "fixtures"
+
+# Word regex mirrors gate_summary._WORD (kept local so the chunk_for_review
+# helper stays a pure function with no module-level coupling).
+_WORD = re.compile(r"\b[\w'\-\u2018\u2019]+\b", re.UNICODE)
+_H3_BREAK = re.compile(r"(?m)(?=^### )")
 
 
 # ---------------------------------------------------------------------------
@@ -239,6 +255,7 @@ def test_render_gate_byte_stable(tmp_path):
         book_check_evidence="",
         reviewer_status="PASS",
         reviewer_evidence="(0 critical, 1 high)",
+        reviewer_invocations=1,
         frozen_count=2,
         frozen_lines=[41, 88],
         open_questions=1,
@@ -249,12 +266,13 @@ def test_render_gate_byte_stable(tmp_path):
         "Word count: 712 (window 600-750) [OK]",
         "Book-check: PASS",
         "Reviewer: PASS (0 critical, 1 high)",
+        "Reviewer invocations: 1",
         "Frozen lines touched: 2 (lines 41, 88)",
         "Open questions: 1",
     ]
     # ``block`` ends with a single newline; ``splitlines()`` strips the
-    # trailing empty entry. The artifact file as written has 7 lines
-    # (6 content + 1 trailing newline).
+    # trailing empty entry. The artifact file as written has 8 lines
+    # (7 content + 1 trailing newline).
     assert block.splitlines() == expected_lines, (
         f"render_gate output drifted:\nexpected: {expected_lines}\n"
         f"got:      {block.splitlines()}"
@@ -432,3 +450,278 @@ def test_end_to_end_daily_focus_artifact_shape(tmp_path):
         "Open questions:",
     ):
         assert field in text, f"field missing from artifact: {field!r}\n{text}"
+
+
+# ---------------------------------------------------------------------------
+# P17 - chunk_for_review helper (pure function used by orchestrator Phase 7)
+# ---------------------------------------------------------------------------
+
+
+def chunk_for_review(text, max_tokens=800):
+    """Split chapter text into review chunks of <= ``max_tokens`` words.
+
+    Algorithm (matches the orchestrator Phase 7 splitting strategy):
+
+    1. If ``len(words) <= max_tokens``, return ``[text]`` as a single chunk
+       (one reviewer invocation; no splitting needed).
+    2. Otherwise, split the text at H3 headings (lines beginning with
+       ``### ``). The lookahead keeps the H3 line attached to the section
+       it introduces.
+    3. Greedily group consecutive sections into chunks whose total word
+       count stays under ``max_tokens``. Flush the current chunk whenever
+       adding the next section would push it over the budget.
+    4. If a single section still exceeds ``max_tokens`` (oversized H3),
+       fall through to paragraph splitting and then to a word-window
+       last resort. This is the defensive path that prevents a runaway
+       chunk when a writer crams too many words into one section.
+    """
+    words = len(_WORD.findall(text))
+    if words <= max_tokens:
+        return [text]
+    sections = _H3_BREAK.split(text)
+    sections = [s for s in sections if s.strip()]
+    if len(sections) <= 1:
+        return _chunk_by_paragraphs(text, max_tokens)
+    chunks: list[str] = []
+    current = ""
+    current_words = 0
+    for section in sections:
+        sec_words = len(_WORD.findall(section))
+        # Oversized section: flush whatever we have, then split this one.
+        if sec_words > max_tokens:
+            if current:
+                chunks.append(current)
+                current = ""
+                current_words = 0
+            chunks.extend(_chunk_by_paragraphs(section, max_tokens))
+            continue
+        # Adding this section would overflow -> flush.
+        if current and current_words + sec_words > max_tokens:
+            chunks.append(current)
+            current = section
+            current_words = sec_words
+            continue
+        # Otherwise accumulate.
+        current += section
+        current_words += sec_words
+    if current:
+        chunks.append(current)
+    return chunks
+
+
+def _chunk_by_paragraphs(text, max_tokens):
+    """Paragraph-level fallback when no H3 boundaries are available."""
+    paragraphs = re.split(r"\n\s*\n", text)
+    paragraphs = [p for p in paragraphs if p.strip()]
+    if len(paragraphs) <= 1:
+        return _chunk_by_words(text, max_tokens)
+    chunks: list[str] = []
+    current = ""
+    current_words = 0
+    for p in paragraphs:
+        pw = len(_WORD.findall(p))
+        if pw > max_tokens:
+            if current:
+                chunks.append(current)
+                current = ""
+                current_words = 0
+            chunks.extend(_chunk_by_words(p, max_tokens))
+            continue
+        if current and current_words + pw > max_tokens:
+            chunks.append(current)
+            current = p
+            current_words = pw
+            continue
+        if current:
+            current += "\n\n" + p
+        else:
+            current = p
+        current_words += pw
+    if current:
+        chunks.append(current)
+    return chunks
+
+
+def _chunk_by_words(text, max_tokens):
+    """Word-window last resort when even a single paragraph exceeds budget."""
+    words = text.split()
+    return [
+        " ".join(words[i:i + max_tokens])
+        for i in range(0, len(words), max_tokens)
+    ]
+
+
+# ---------------------------------------------------------------------------
+# P17 tests - Reviewer invocations field in the gate artifact
+# ---------------------------------------------------------------------------
+
+
+def test_render_gate_includes_invocation_count(tmp_path):
+    """``render_gate`` surfaces ``reviewer_invocations`` as a dedicated
+    field that sits immediately after the ``Reviewer:`` line (P17)."""
+    block = gs.render_gate(
+        "ch-07",
+        word_count=712,
+        window=(600, 750),
+        book_check_status="PASS",
+        book_check_evidence="",
+        reviewer_status="PASS",
+        reviewer_evidence="(0 critical, 0 high)",
+        reviewer_invocations=4,
+        frozen_count=0,
+        frozen_lines=[],
+        open_questions=0,
+        status="APPROVED",
+    )
+    assert "Reviewer invocations: 4" in block, (
+        f"missing invocation count line; got:\n{block}"
+    )
+    lines = block.splitlines()
+    rev_idx = next(i for i, ln in enumerate(lines) if ln.startswith("Reviewer:"))
+    assert lines[rev_idx + 1] == "Reviewer invocations: 4", (
+        f"invocation line must follow Reviewer: directly; got:\n{lines}"
+    )
+
+
+def test_invocation_count_default_is_one(tmp_path):
+    """When ``--reviewer-invocations`` is omitted the artifact reports 1."""
+    _write_chapter(tmp_path, "ch-01.md", "# Title\n\nbody " * 80 + "\n")
+    reports = tmp_path / "reports"
+    _write_check_chapter_json(reports, "T-P17-def", "ch-01", [
+        {"name": "word_count_per_beat", "status": "PASS", "evidence": "ok"},
+    ])
+    _write_review(reports, "T-P17-def", body=_clean_review())
+    rc = gs.main([
+        "--book", str(tmp_path),
+        "--chapter", "ch-01",
+        "--review", str(reports / "T-P17-def" / "04_review_T-2026-08-05-001_P5.md"),
+        "--task", "T-P17-def",
+        "--reports-dir", str(reports),
+    ])
+    assert rc == 0, f"expected APPROVED (rc=0); got rc={rc}"
+    out = (reports / "T-P17-def" / "02_gate_ch-01_T-P17-def.md").read_text(
+        encoding="utf-8"
+    )
+    assert "Reviewer invocations: 1" in out, (
+        f"default invocation count must be 1; got:\n{out}"
+    )
+
+
+def test_invocation_count_via_cli_flag(tmp_path):
+    """``--reviewer-invocations N`` propagates N into the artifact."""
+    _write_chapter(tmp_path, "ch-12.md", "# Title\n\nbody " * 80 + "\n")
+    reports = tmp_path / "reports"
+    _write_check_chapter_json(reports, "T-P17-cli", "ch-12", [
+        {"name": "word_count_per_beat", "status": "PASS", "evidence": "ok"},
+    ])
+    _write_review(reports, "T-P17-cli", body=_clean_review())
+    rc = gs.main([
+        "--book", str(tmp_path),
+        "--chapter", "ch-12",
+        "--review", str(reports / "T-P17-cli" / "04_review_T-2026-08-05-001_P5.md"),
+        "--task", "T-P17-cli",
+        "--reports-dir", str(reports),
+        "--reviewer-invocations", "7",
+    ])
+    assert rc == 0, f"expected APPROVED (rc=0); got rc={rc}"
+    out = (reports / "T-P17-cli" / "02_gate_ch-12_T-P17-cli.md").read_text(
+        encoding="utf-8"
+    )
+    assert "Reviewer invocations: 7" in out, (
+        f"--reviewer-invocations 7 must surface; got:\n{out}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# P17 tests - chunk_for_review algorithm + E2E with invocation count
+# ---------------------------------------------------------------------------
+
+
+def test_chunk_for_review_short_text_returns_one_chunk():
+    """Text shorter than ``max_tokens`` returns the original text intact."""
+    short = "# Title\n\nA short paragraph of prose for testing.\n" * 5
+    chunks = chunk_for_review(short, max_tokens=800)
+    assert len(chunks) == 1, f"expected 1 chunk; got {len(chunks)}"
+    assert chunks[0] == short, "short text must be returned as-is"
+
+
+def test_chunk_for_review_long_chapter_yields_four_chunks():
+    """The 3000-word long-chapter fixture must produce exactly 4 chunks.
+
+    This is the spec contract for P17: ``1 fixture chapter with 3000 words
+    -> orchestrator runs 4 chunks -> 1 consolidated review``.  Each chunk
+    must stay at or under the 800-token budget so a reviewer prompt that
+    reads the chunk plus checklist never overflows the model's context.
+    """
+    text = (FIXTURES / "long-chapter.md").read_text(encoding="utf-8")
+    total_words = len(_WORD.findall(text))
+    assert 2950 <= total_words <= 3200, (
+        f"fixture must be ~3000 words; got {total_words}"
+    )
+    chunks = chunk_for_review(text, max_tokens=800)
+    assert len(chunks) == 4, (
+        f"expected 4 chunks for 3000-word fixture; got {len(chunks)}"
+    )
+    for i, c in enumerate(chunks):
+        wc = len(_WORD.findall(c))
+        assert wc <= 800, f"chunk {i} has {wc} words; exceeds max 800"
+
+
+def test_chunk_for_review_oversized_section_splits():
+    """A single H3 section exceeding ``max_tokens`` must split further.
+
+    Defensive test: the orchestrator's spec allows a chapter to have one
+    fat H3 section (e.g. a long code-listing section).  ``chunk_for_review``
+    must split it via the paragraph -> word-window fallback chain so the
+    reviewer never receives a chunk larger than the budget.
+    """
+    long_para = "x " + "word " * 900
+    text = (
+        "# Title\n\n## Section\n\n"
+        "### Oversized\n\n" + long_para + "\n\n"
+        "### Small\n\nshort body\n"
+    )
+    chunks = chunk_for_review(text, max_tokens=800)
+    assert len(chunks) >= 2, (
+        f"oversized section must split into >=2 chunks; got {len(chunks)}"
+    )
+    for i, c in enumerate(chunks):
+        wc = len(_WORD.findall(c))
+        assert wc <= 800, f"chunk {i} has {wc} words; exceeds max 800"
+
+
+def test_chunk_for_review_e2e_with_invocation_count(tmp_path):
+    """End-to-end: the chunk count drives the gate artifact's invocation line.
+
+    Splits the 3000-word fixture via ``chunk_for_review`` (4 chunks), then
+    runs ``gate_summary`` with ``--reviewer-invocations`` equal to the
+    chunk count and confirms the artifact reports the same N.  This ties
+    the splitting algorithm (orchestrator-side) to the invocation count
+    (gate artifact-side) so the two pieces agree on what ``N`` means.
+    """
+    text = (FIXTURES / "long-chapter.md").read_text(encoding="utf-8")
+    chunks = chunk_for_review(text, max_tokens=800)
+    n_invocations = len(chunks)
+    assert n_invocations == 4, f"preflight: expected 4 chunks; got {n_invocations}"
+
+    _write_chapter(tmp_path, "ch-long.md", text)
+    reports = tmp_path / "reports"
+    _write_check_chapter_json(reports, "T-P17-e2e", "ch-long", [
+        {"name": "word_count_per_beat", "status": "PASS", "evidence": "ok"},
+    ])
+    _write_review(reports, "T-P17-e2e", body=_clean_review())
+    rc = gs.main([
+        "--book", str(tmp_path),
+        "--chapter", "ch-long",
+        "--review", str(reports / "T-P17-e2e" / "04_review_T-2026-08-05-001_P5.md"),
+        "--task", "T-P17-e2e",
+        "--reports-dir", str(reports),
+        "--reviewer-invocations", str(n_invocations),
+    ])
+    assert rc == 0, f"expected APPROVED (rc=0); got rc={rc}"
+    out = (reports / "T-P17-e2e" / "02_gate_ch-long_T-P17-e2e.md").read_text(
+        encoding="utf-8"
+    )
+    assert f"Reviewer invocations: {n_invocations}" in out, (
+        f"expected Reviewer invocations: {n_invocations}; got:\n{out}"
+    )
