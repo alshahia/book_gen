@@ -128,10 +128,13 @@ For each chapter (or each independent parallel group):
 4. `am-coder` updates `books/<slug>/ledger.md` to mark the chapter `drafted`.
 5. After `am-coder`'s gate pass lands, master (or `am-coder` itself) runs `python book-kit/book_workflow/scripts/render_ledger_check.py --book books/<slug> --chapter ch-NN --out books/<slug>/ledger.md` to refresh the `## Gate checklist` block in `ledger.md`. The script consumes `check_chapter.py --json` + `book_check.py --json` output and replaces the block in-place; re-runs are idempotent (no duplicate rows). When `am-coder` writes the chapter file the orchestrator has the canonical "chapter just landed" moment to run this — a single line in the post-write hook is enough.
 
+6. After each beat write passes the per-beat gate, master (or `am-coder`) emits a git tag if `books/<slug>/chapters/` is a git repository. Run `bash book-kit/bin/check-book-repo.sh books/<slug>/`; on exit 0 emit `git -C books/<slug> tag scope-book/ch-NN-beat-K` where `NN` is the chapter number (zero-padded, e.g. `ch-03`) and `K` is the 1-indexed beat number the writer just finished. On exit 1 the script prints `WARNING: ... is not a git repo; beat-boundary snapshots disabled. Run 'git init' to enable.` to stderr, the tag is silently skipped, and the orchestrator surfaces the warning to the user (and offers the one-liner from `book-kit/docs/BEAT_GIT.md`). Tag emission is idempotent -- duplicate-tag errors are NOT gate failures. See `book-kit/docs/BEAT_GIT.md` for the convention and recovery flow.
+
 Boundary reminders for am-coder:
 - write ONLY to `books/<slug>/chapters/`, `books/<slug>/bible.md`, `books/<slug>/ledger.md`
 - do NOT write prose for any chapter not in your dispatch prompt
-- do NOT mark a chapter `approved` — that's am-review's call
+- do NOT mark a chapter `approved` -- that's am-review's call
+- after each beat gate passes, emit `git tag scope-book/ch-NN-beat-K` if `books/<slug>/` is a git repo -- check with `bash book-kit/bin/check-book-repo.sh books/<slug>/`, silent skip on exit 1, surface the stderr warning to master
 - do NOT invent facts not in the bible or research-log
 
 ### Pre-PDF figure render (master runs `render_mermaid.py`)

@@ -75,6 +75,33 @@ translate agentic-design-patterns.pdf to Arabic
 The orchestrator detects translation intent, prompts you for the extra 7
 intake fields (§10 of `intake.md`), and runs the two-pass `book-reviewer`.
 
+### First time setup (per book): enable beat-boundary snapshots
+
+Beat-boundary snapshots let you diff a single beat's rewrite without
+losing the chapter baseline (see `docs/BEAT_GIT.md` for the convention).
+Without this step the orchestrator still works -- the tag is silently
+skipped and a stderr warning is logged.
+
+Run once per book, after the book directory is created:
+
+```sh
+cd books/<slug>
+git init
+git add chapters/
+git commit -m "initial chapters import"
+cd ../..
+```
+
+Confirm the orchestrator will emit tags:
+
+```sh
+bash book-kit/bin/check-book-repo.sh books/<slug>/
+# expected: books/<slug>/: git repo OK
+```
+
+The script exits 1 with `WARNING: ... is not a git repo; beat-boundary
+snapshots disabled. Run 'git init' to enable.` when `.git/` is missing.
+
 ## 4. The 7 phases
 
 Master loads the book-gen-orchestrator skill and walks you through:
