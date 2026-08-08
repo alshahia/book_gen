@@ -151,6 +151,25 @@ This requires mermaid-cli on PATH (`npm install -g @mermaid-js/mermaid-cli`). Ha
 
 Re-runs are idempotent: an unchanged book produces a byte-identical manifest.
 
+### PDF build (master runs `md2pdf.py --book`)
+
+After the gate artifact is in place, master assembles the final PDF by handing the whole book to `md2pdf.py --book`:
+
+```sh
+python book-kit/book_workflow/scripts/md2pdf.py --book books/<slug> --out exports/book.pdf \
+    --title "<title>" --author "<author>" --isbn "<isbn>" --build-date "$(date +%Y-%m-%d)"
+```
+
+The script reads `<book>/toc.md` (chapter order), `<book>/style-guide.md` (`paper_size`, `fonts`, `cover_text`, metadata), and any optional `preface.html` / `back-matter.html` next to `toc.md`. It writes `<book>/exports/book.pdf` (path is resolved relative to the book root and must not escape it) and emits page numbers via `@page { @bottom-right { content: counter(page); } }`, with the cover suppressed via `@page :first`. The P11 `chapters-rendered/` mirror is preferred when it exists so rendered mermaid figures reach the PDF instead of raw fences.
+
+Exit codes the orchestrator must handle:
+
+- **Exit 0** — PDF written; advance to Phase 7 review.
+- **Exit 2** — input error (`toc.md` missing, a chapter file missing, `--out` path outside the book root). Treat as a chapter defect and route back to am-coder; nothing was written.
+- **Exit 3** — Chrome/Edge is not installed. Re-run with `--html-only` to land the assembled HTML under `<book>/exports/book.html` and pause the PDF step with the install hint surfaced to the user.
+
+When the pre-PDF figure render used the P11 mirror, the resulting PDF is dropped at `<book>/exports/book.pdf` and is the artifact the user receives in the Phase 7 review bundle.
+
 ## Phase 7 — Review (dispatch am-review)
 
 ### Pre-review gate artifact (master runs `gate_summary.py` per chapter)

@@ -404,6 +404,58 @@ python md2pdf.py <md-file> [<md-file> ...] [--out DIR] [--css FILE] [--figures-m
 
 **Exit codes:** 0 = success, 1 = missing input files / Chrome not found / subprocess failure.
 
+### Book mode (P12)
+
+Assembles a whole book into a single PDF: cover, preface, auto-linked table of
+contents, every chapter in `toc.md` order, and back-matter. Paper size and
+fonts come from the book's `style-guide.md` frontmatter and page numbers appear
+in the bottom-right corner (suppressed on the cover). Designed for the
+orchestrator's Phase 6 dispatch (see `agents_manager/book-gen-orchestrator/SKILL.md`).
+
+**Usage:**
+```sh
+python md2pdf.py --book <book-root> [--toc REL] [--style-guide REL]
+                 [--out REL] [--html-only]
+                 [--title T] [--author A] [--isbn I] [--build-date D]
+```
+
+**Flags:**
+| Flag | Default | Purpose |
+|---|---|---|
+| `--book DIR` | — | Book root; reads `toc.md` and `style-guide.md` relative to it. |
+| `--toc REL` | `toc.md` | Table-of-contents file, relative to the book root. |
+| `--style-guide REL` | `style-guide.md` | Style guide supplying `paper_size`, `fonts`, `cover_text`, and metadata frontmatter. |
+| `--out REL` | `exports/book.html` (`--html-only`) or `exports/book.pdf` | Output path, relative to the book root. `--book` mode refuses paths that escape the book root (no `..` components, no absolute paths elsewhere). |
+| `--html-only` | false | Stop after the assembled HTML; no Chrome/Edge needed. Use to defer PDF rendering when the browser is missing. |
+| `--title / --author / --isbn / --build-date` | — | Book metadata. Overrides the style guide's frontmatter when both are present (handy for per-edition builds). |
+
+**Behavior:**
+- The document is assembled in this order: cover `--page-break-after` -> preface (optional, `preface.html`/`preface.md`/`front-matter.html`/`front-matter.md`) -> `<nav class="book-toc">` with one `<a href="#<slug>">` per chapter -> chapters (toc.md order) -> back-matter (optional).
+- Section ids are derived from the chapter filename: `ch-01.md` -> `id="ch-01"`. Duplicate slugs get a numeric suffix.
+- Page numbers come from `DEFAULT_CSS + @page { @bottom-right { content: counter(page); } }`, with the cover suppressed via `@page :first { @bottom-right { content: "" } }`.
+- Head metadata (`<title>`, `<meta name="author">`, `<meta name="isbn">`, `<meta name="identifier" content="urn:isbn:...">`, `<meta name="dcterms.created">`, `<meta name="paper-size">`) is written so Chrome carries it into the PDF.
+- A missing `toc.md`, an empty chapter list, or any toc entry pointing at a missing file is a graceful `BookError` (exit 2). Chrome/Edge missing while `--html-only` is *not* set exits 3 (deferred rendering).
+- The P11 `chapters-rendered/` mirror is preferred when present so rendered mermaid figures reach the PDF instead of raw fences.
+
+**Frontmatter shape (style-guide.md):**
+```yaml
+---
+paper_size: B5         # A4, A5, B5, B6, Letter, US-Letter, Legal or raw "210mm 297mm"
+fonts:
+  body: Cairo
+  display: Amiri
+cover_text: |
+  My Book
+  A second cover line
+title: My Book
+author: Author Name
+isbn: 978-0-00-000000-0
+build_date: 2026-08-08
+---
+```
+
+**Exit codes (book mode):** 0 = success, 2 = input error (missing toc, missing chapter, `--out` escapes the book root), 3 = browser missing and `--html-only` not set.
+
 ---
 
 ## gate_summary.py
