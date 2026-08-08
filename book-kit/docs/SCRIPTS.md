@@ -768,3 +768,72 @@ render failure), 3 = `mmdc` required but not installed.
 **Stdlib-only** on the Python side. No new Python dependencies. Forces UTF-8
 stdio at module load before any argparse construction or output (WARN #15 /
 #22 inheritance).
+
+---
+
+## visual_qa.py (P13)
+
+Post-PDF page diagnostics for a rendered book. Walks every page with PyMuPDF,
+saves a PNG of each page at dpi=150, counts widow/orphan candidates from the
+text layout, and emits a page-number table of marker-string matches (e.g.
+chapter titles). Wired into the orchestrator's Phase 7 as the post-PDF check
+that runs after `md2pdf.py --book` finishes (see
+`agents_manager/book-gen-orchestrator/SKILL.md`).
+
+**External dependency:**
+```sh
+pip install pymupdf
+```
+The script imports the package as `pymupdf as fitz` so it works on
+PyMuPDF >= 1.28 where the top-level `fitz` module is deprecated. The alias
+covers older releases too because both names expose the same API surface.
+
+**Usage:**
+```sh
+python visual_qa.py <book.pdf> [--markers FILE]
+                     [--out PATH] [--figures-dir DIR] [--slug NAME]
+```
+
+**Flags:**
+| Flag | Default | Behavior |
+|---|---|---|
+| `<pdf>` (positional, required) | — | Rendered book PDF to scan. |
+| `--markers` | (none) | UTF-8 file with one marker per line (chapter titles). Blank lines and `#` comments are ignored. When omitted, the Markers column is `--` for every page. |
+| `--out` | `<pdf-parent>/figures/visual-qa.md` | Output markdown path. Resolved under the PDF parent directory; refuses paths with `..` or that escape the parent (P4 #14 / P6 inheritance). |
+| `--figures-dir` | `<pdf-parent>/figures` | Where the page PNGs land. Same path-under-parent enforcement as `--out`. |
+| `--slug` | `<pdf-stem>` | Prefix for rendered PNG filenames. |
+
+**Per-page artifacts:** `<figures-dir>/<slug>-page-NN.png` (dpi=150, NN
+zero-padded so the directory sorts the same as the PDF page order).
+
+**Marker search:** `page.search_for(marker)` is run per page; the Markers
+column lists every marker that produced at least one hit, comma-separated.
+The Chapter column uses the first matching marker as the chapter label
+(`cover` for page 1 with no matches; `--` for any other unmatched page).
+
+**Widow/orphan heuristic (page-level, not typesetting-perfect):**
+- **widow** — last line of a text block in the top 20 percent of the page
+  whose width is strictly less than one third of the page width.
+- **orphan** — first line of a text block in the bottom 20 percent of the
+  page.
+
+A future P13.x can swap in a paragraph-reconstruction algorithm when the
+project needs higher fidelity; today these flags catch the gross cases that
+are easy to miss in a final read-through.
+
+**Emitted markdown:**
+```
+| Page | Chapter | Markers | Widows | Orphans |
+| --- | --- | --- | --- | --- |
+| 1 | cover | -- | 0 | 0 |
+| 2 | ch-01 | "Chapter 1" | 0 | 0 |
+| 5 | ch-02 | "Chapter 2" | 1 | 0 |
+```
+Missing-data cells use ASCII `--` (never U+2014 em-dash per the P13 gate).
+
+**Exit codes:** 0 = diagnostics written, 2 = input error (PDF not found,
+malformed `--markers`, `--out` or `--figures-dir` outside the PDF parent
+directory, PyMuPDF cannot open the PDF).
+
+**Forces UTF-8 stdio** at module load before any argparse construction or
+output (WARN #15 / #22 inheritance).

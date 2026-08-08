@@ -170,6 +170,31 @@ Exit codes the orchestrator must handle:
 
 When the pre-PDF figure render used the P11 mirror, the resulting PDF is dropped at `<book>/exports/book.pdf` and is the artifact the user receives in the Phase 7 review bundle.
 
+### Post-PDF visual check (master runs `visual_qa.py`)
+
+Before dispatching `am-review` for the first chapter in a run, master runs the
+P13 page-diagnostics pass against the assembled PDF so the reviewer has a
+per-page PNG snapshot, widow/orphan counts, and a marker-string index alongside
+the chapter bundle:
+
+```sh
+python book-kit/book_workflow/scripts/visual_qa.py <book>/exports/book.pdf \
+    --markers <book>/chapter-titles.txt \
+    --out <book>/figures/visual-qa.md \
+    --figures-dir <book>/figures \
+    --slug <slug>
+```
+
+The script writes one PNG per page (dpi=150) under `<book>/figures/`, then
+emits `<book>/figures/visual-qa.md` with the canonical 5-column table
+(`Page`, `Chapter`, `Markers`, `Widows`, `Orphans`). It is **post-PDF,
+informational** -- a non-zero widow or orphan count does NOT block Phase 7;
+the artifact is a heads-up for the reviewer and a regression baseline for
+the next build. The orchestrator must surface the artifact path in the
+review handoff so `am-review` can cite per-page rows when reporting layout
+issues. Exit codes: 0 = diagnostics written, 2 = input error (PDF missing,
+`--markers` unreadable, `--out`/`--figures-dir` outside the PDF parent).
+
 ## Phase 7 — Review (dispatch am-review)
 
 ### Pre-review gate artifact (master runs `gate_summary.py` per chapter)
