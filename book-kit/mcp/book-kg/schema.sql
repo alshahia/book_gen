@@ -48,7 +48,8 @@ CREATE TABLE IF NOT EXISTS frozen_line_occurrences (
     chapter_id      INTEGER NOT NULL REFERENCES chapters(id) ON DELETE CASCADE,
     beat_id         INTEGER REFERENCES beats(id),
     line_number     INTEGER,
-    context         TEXT
+    context         TEXT,
+    UNIQUE(frozen_line_id, chapter_id, line_number)
 );
 
 CREATE TABLE IF NOT EXISTS motifs (
@@ -93,7 +94,8 @@ CREATE TABLE IF NOT EXISTS continuity_anchors (
     scope_start_chapter     INTEGER,
     scope_end_chapter       INTEGER,
     expected_state          TEXT,
-    actual_state_summary    TEXT
+    actual_state_summary    TEXT,
+    UNIQUE(book_id, keyword, scope_start_chapter, scope_end_chapter)
 );
 
 CREATE TABLE IF NOT EXISTS chapter_refs (
@@ -127,4 +129,9 @@ CREATE VIRTUAL TABLE IF NOT EXISTS search_index USING fts5(
     source_id UNINDEXED,
     book_id UNINDEXED,
     tokenize='unicode61 remove_diacritics 2'
+);
+
+CREATE TABLE IF NOT EXISTS schema_version (
+    version     INTEGER PRIMARY KEY,
+    applied_at  TEXT DEFAULT CURRENT_TIMESTAMP
 );

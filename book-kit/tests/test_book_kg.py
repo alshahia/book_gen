@@ -63,6 +63,25 @@ def test_idempotent_reindex_has_no_duplicates(tmp_path):
     assert conn.execute("SELECT count(*) FROM character_mentions").fetchone()[0] == 3
     assert conn.execute("SELECT count(*) FROM chapters").fetchone()[0] == 3
     assert conn.execute("SELECT count(*) FROM schema_version").fetchone()[0] == 1
+    assert conn.execute("SELECT count(*) FROM frozen_line_occurrences").fetchone()[0] == 1
+    assert conn.execute("SELECT count(*) FROM continuity_anchors").fetchone()[0] == 1
+    assert conn.execute("SELECT count(*) FROM chapter_deps").fetchone()[0] == 2
+
+
+def test_outline_md_creates_chapter_deps(tmp_path):
+    db = db_for(tmp_path)
+    conn = sqlite3.connect(db)
+    rows = conn.execute("""
+        SELECT fc.chapter_num AS from_ch, tc.chapter_num AS to_ch, cd.dep_type
+        FROM chapter_deps cd
+        JOIN chapters fc ON fc.id=cd.chapter_id
+        JOIN chapters tc ON tc.id=cd.depends_on_chapter_id
+        ORDER BY fc.chapter_num, tc.chapter_num
+    """).fetchall()
+    assert len(rows) == 2
+    pairs = {(r[0], r[1]) for r in rows}
+    assert pairs == {(2, 1), (3, 2)}
+    assert {r[2] for r in rows} == {"narrative"}
 
 
 def test_fts5_search(tmp_path):

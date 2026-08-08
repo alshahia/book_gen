@@ -40,7 +40,6 @@ def connect_db(db_path):
     db.execute("PRAGMA foreign_keys = ON")
     db.row_factory = sqlite3.Row
     db.executescript(SCHEMA_PATH.read_text(encoding="utf-8"))
-    db.execute("CREATE TABLE IF NOT EXISTS schema_version (version INTEGER PRIMARY KEY, applied_at TEXT DEFAULT CURRENT_TIMESTAMP)")
     if db.execute("SELECT 1 FROM schema_version WHERE version=?", (SCHEMA_VERSION,)).fetchone() is None:
         db.execute("INSERT INTO schema_version(version) VALUES (?)", (SCHEMA_VERSION,))
     db.commit()
@@ -78,6 +77,49 @@ def _upsert_named(db, table, book_id, name, description=None):
     return db.execute(f"SELECT id FROM {table} WHERE book_id=? AND name=?", (book_id, name)).fetchone()[0]
 
 
+def _parse_outline_deps(text):
+    """Parse outline.md into {chapter_num: [dep_chapter_num, ...]}.
+
+    Supports two formats:
+      Format 1 (fixture): bullet "- ch-NN: Title (depends_on: ch-NN[, ch-NN...])"
+      Format 2 (daily-focus): heading "## ch-NN -- ..." with later line "depends_on: ch-NN[, ch-NN...]" or "depends_on: independent"
+    """
+    deps = {}
+    # Format 1
+    for m in re.finditer(r"^\s*[-*]\s*ch-(\d+)[^:\n]*:\s*(.+?)\s*$", text, re.M | re.I):
+        chapter_num = int(m.group(1))
+        rest = m.group(2)
+        dep_match = re.search(r"\(depends_on:\s*([^)]+)\)", rest, re.I)
+        if dep_match:
+            chapter_deps = deps.setdefault(chapter_num, [])
+            for dep in re.findall(r"ch-(\d+)", dep_match.group(1), re.I):
+                d = int(dep)
+                if d != chapter_num and d not in chapter_deps:
+                    chapter_deps.append(d)
+    # Format 2
+    current_chapter = None
+    for line in text.splitlines():
+        heading_match = re.match(r"^#{1,6}\s*ch-(\d+)\b", line, re.I)
+        if heading_match:
+            current_chapter = int(heading_match.group(1))
+            deps.setdefault(current_chapter, [])
+            continue
+        if current_chapter is None:
+            continue
+        dep_match = re.match(r"^\s*depends_on\s*:\s*(.+?)\s*$", line, re.I)
+        if not dep_match:
+            continue
+        rest = dep_match.group(1)
+        if "independent" in rest.lower():
+            continue
+        chapter_deps = deps.setdefault(current_chapter, [])
+        for dep in re.findall(r"ch-(\d+)", rest, re.I):
+            d = int(dep)
+            if d != current_chapter and d not in chapter_deps:
+                chapter_deps.append(d)
+    return deps
+
+
 def index_book(book_root, db_path=None):
     root = Path(book_root).resolve()
     if not root.is_dir():
@@ -100,7 +142,7 @@ def index_book(book_root, db_path=None):
         for row in _table_rows(_sections(bible, "Continuity anchor")):
             if len(row) >= 3 and re.search(r"ch-\d+", row[2], re.I):
                 nums = [int(n) for n in re.findall(r"\d+", row[2])]
-                db.execute("INSERT INTO continuity_anchors(book_id,keyword,quote,scope_start_chapter,scope_end_chapter) VALUES (?,?,?,?,?)", (book_id, row[0], row[1], nums[0], nums[-1]))
+                db.execute("INSERT OR IGNORE INTO continuity_anchors(book_id,keyword,quote,scope_start_chapter,scope_end_chapter) VALUES (?,?,?,?,?)", (book_id, row[0], row[1], nums[0], nums[-1]))
         for section, table in (("Motifs", "motifs"), ("Characters", "characters")):
             block = _sections(bible, section)
             for item in re.findall(r"^\s*[-*]\s+(.+?)\s*$", block, re.M):
@@ -159,6 +201,20 @@ def index_book(book_root, db_path=None):
             db.execute("DELETE FROM search_index WHERE book_id=? AND source_type='chapter' AND source_id=?", (book_id, str(chapter_id)))
             db.execute("INSERT INTO search_index(content,source_type,source_id,book_id) VALUES (?,?,?,?)", (text, "chapter", str(chapter_id), str(book_id)))
             seen += 1
+
+        outline_path = root / "outline.md"
+        if outline_path.exists():
+            deps_map = _parse_outline_deps(read_text(outline_path))
+            db.execute("DELETE FROM chapter_deps WHERE chapter_id IN (SELECT id FROM chapters WHERE book_id=?) OR depends_on_chapter_id IN (SELECT id FROM chapters WHERE book_id=?)", (book_id, book_id))
+            for chapter_num, dep_chapter_nums in deps_map.items():
+                chapter_id = chapter_ids.get(chapter_num)
+                if not chapter_id:
+                    continue
+                for dep_chapter_num in dep_chapter_nums:
+                    dep_chapter_id = chapter_ids.get(dep_chapter_num)
+                    if not dep_chapter_id:
+                        continue
+                    db.execute("INSERT INTO chapter_deps(chapter_id, depends_on_chapter_id, dep_type) VALUES (?,?,?)", (chapter_id, dep_chapter_id, "narrative"))
 
         frozen_path = root / "frozen-lines.json"
         if frozen_path.exists():
