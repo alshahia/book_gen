@@ -12,6 +12,7 @@ confirm the argparse + --json path also works.
 import json
 import sys
 from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 # conftest.py already prepends book-kit/book_workflow/scripts to sys.path.
 import check_chapter as cc
@@ -381,7 +382,101 @@ def test_rule_applied_when_chapter_at_or_after_applies_from(tmp_project):
         f"expected the rule's own verdict text in evidence; got {r.evidence!r}"
     )
 
-# Total: 12 tests above. The CLI smoke test (argparse + --json + main()
+# ---------------------------------------------------------------------------
+# 13) --lang ar — clean Modern Standard Arabic → arabic_grammar PASS
+# ---------------------------------------------------------------------------
+
+def _mcp_stdout(issues):
+    """Serialize ``issues`` as the MCP stdio response the script parses.
+
+    Mirrors the real transport: newline-delimited JSON-RPC, an ``initialize``
+    reply on id=1, then the ``tools/call`` reply on id=2 carrying the
+    LanguageTool payload inside the standard text-content envelope. Building
+    the wire format (rather than patching ``run_grammar_check``) keeps
+    ``_parse_mcp_stdout`` / ``_extract_issues`` under test too.
+    """
+    return "".join(json.dumps(m, ensure_ascii=False) + "\n" for m in [
+        {"jsonrpc": "2.0", "id": 1, "result": {"protocolVersion": "2024-11-05"}},
+        {"jsonrpc": "2.0", "id": 2, "result": {
+            "content": [{"type": "text",
+                         "text": json.dumps({"matches": issues}, ensure_ascii=False)}]}},
+    ])
+
+
+def _patched_popen(issues):
+    """``subprocess.Popen`` stand-in whose ``communicate()`` returns ``issues``."""
+    proc = MagicMock()
+    proc.communicate.return_value = (_mcp_stdout(issues), "")
+    return patch.object(cc.subprocess, "Popen", return_value=proc)
+
+
+def test_check_chapter_lang_valid_arabic(tmp_project):
+    """Grammatical Modern Standard Arabic with the MCP reporting zero matches
+    → the ``arabic_grammar`` row is PASS with ``"0 issues found"`` evidence.
+
+    The LanguageTool server itself is mocked (no Java / no network in CI);
+    what this test pins is the wiring: ``--lang ar`` selects the
+    ``arabic_grammar`` name, an empty match list means PASS, and the row is
+    appended to the eight rule-based checks rather than replacing them.
+    """
+    chapter = (
+        "# الفصل\n\n"
+        "## المشهد الأول\n\n"
+        "ذهب الطالبان إلى المكتبة في الصباح الباكر.\n\n"
+        "خاتمة قصيرة.\n"
+    )
+    chapter_path = _write_chapter(tmp_project, "ch-04.md", chapter)
+
+    with _patched_popen([]):
+        results = cc.run_all_checks(chapter_path, cc.read_style_guide(None),
+                                     applicability={}, lang="ar")
+
+    r = _find(results, "arabic_grammar")
+    assert r.status.lower() == "pass", f"expected pass; got {r.status}; evidence={r.evidence}"
+    assert "0 issues found" in r.evidence, f"expected '0 issues found'; got {r.evidence!r}"
+    # The grammar row is additive — the eight rule checks must still be present.
+    assert len(results) == 9, f"expected 8 rule rows + 1 grammar row; got {[x.name for x in results]}"
+    assert "english_grammar" not in {x.name for x in results}
+
+
+# ---------------------------------------------------------------------------
+# 14) --lang ar — planted agreement error → arabic_grammar FAIL
+# ---------------------------------------------------------------------------
+
+def test_check_chapter_lang_planted_error(tmp_project):
+    """One planted Arabic agreement error → ``arabic_grammar`` is FAIL and the
+    planted message + rule id appear in the evidence.
+
+    Complements the test above: same wiring, non-empty match list. Proves the
+    PASS path isn't a constant — the row's verdict actually tracks what the
+    MCP returns.
+    """
+    chapter = (
+        "# الفصل\n\n"
+        "## المشهد الأول\n\n"
+        "ذهب الطالبان إلى المكتبة في الصباح الباكر.\n\n"
+        "خاتمة قصيرة.\n"
+    )
+    chapter_path = _write_chapter(tmp_project, "ch-04.md", chapter)
+    planted = [{"message": "Agreement error", "offset": 42, "length": 5,
+                "rule_id": "AR_AGREEMENT"}]
+
+    with _patched_popen(planted):
+        results = cc.run_all_checks(chapter_path, cc.read_style_guide(None),
+                                     applicability={}, lang="ar")
+
+    r = _find(results, "arabic_grammar")
+    assert r.status.lower() == "fail", f"expected fail; got {r.status}; evidence={r.evidence}"
+    assert "1 issues found" in r.evidence, f"expected the issue count; got {r.evidence!r}"
+    assert "Agreement error" in r.evidence, (
+        f"expected the planted message in evidence; got {r.evidence!r}"
+    )
+    assert "AR_AGREEMENT" in r.evidence, (
+        f"expected the planted rule id in evidence; got {r.evidence!r}"
+    )
+
+
+# Total: 14 tests above. The CLI smoke test (argparse + --json + main()
 # integration) is verified manually in the acceptance criteria
 # (`python check_chapter.py ...`); the 8 rule-level tests above use the
 # same internal functions `main()` calls, so the wiring is exercised

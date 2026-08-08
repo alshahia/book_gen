@@ -169,6 +169,50 @@ python check_chapter.py chapters/ch-03.md \
     --config style-guide.md --json | jq '.checks[] | select(.status=="FAIL")'
 ```
 
+### check_chapter.py --lang
+
+- Flag: `--lang <ar|en>`
+- Behavior: runs LanguageTool grammar check after the existing 8 checks
+- Output: adds `arabic_grammar` or `english_grammar` row to JSON
+- Requires: LanguageTool MCP server (configured in `~/.config/opencode/opencode.json`)
+
+The grammar pass is **additive and opt-in** — without `--lang` the script
+behaves exactly as before (8 rows). The row's status is `PASS` when the server
+reports zero matches, `FAIL` otherwise (evidence carries the issue count plus
+the first three messages with their offsets and rule ids). If the MCP server
+can't be reached — Node absent, offline, first-run download failed — the row is
+`WARN`, not `FAIL`: an optional external dependency must never block a chapter
+that passes the eight built-in rules.
+
+**MCP entry** (in `~/.config/opencode/opencode.json`, outside this repo):
+```json
+"languagetool": {
+  "type": "local",
+  "command": "npx",
+  "args": ["-y", "@goncalomb/languagetool-mcp"],
+  "enabled": true,
+  "timeout": 60000
+}
+```
+The package downloads the LanguageTool server and the requested language pack
+(`ar` / `en`) on first call, so the first run is slow. **Java 17+ is required**
+on the host — LanguageTool is a JVM service.
+
+> **Unresolved (P10):** `@goncalomb/languagetool-mcp` is not published on the
+> npm registry (`npm view` returns 404), and the tool name this script calls
+> (`check_text`) is therefore unverified against a live server. The entry ships
+> `"enabled": false` until the package name is confirmed. The script's grammar
+> row degrades to `WARN` while the server is unreachable, so `--lang` is safe to
+> pass in the meantime. Closest published alternative is
+> `@dpesch/languagetool-mcp-server`, but it targets the LanguageTool **Pro API**
+> (needs an API key; no local JVM), which is a different deployment shape.
+
+```sh
+# Arabic grammar pass on top of the eight prose rules
+python check_chapter.py chapters/ch-03.md --config style-guide.md \
+    --lang ar --json | jq '.checks[] | select(.name=="arabic_grammar")'
+```
+
 ---
 
 ## bilingual_smoke.py

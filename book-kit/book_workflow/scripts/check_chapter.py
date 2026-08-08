@@ -12,7 +12,13 @@ coupling would make future refactors slower.
 
 CLI:
     check_chapter.py <chapter.md> [--beat] [--json] [--config <style-guide.md|book-root>]
-                         [--task <task-id>] [--report-dir <root>]
+                         [--task <task-id>] [--report-dir <root>] [--lang <ar|en>]
+
+``--lang`` (P10) runs a LanguageTool grammar pass after the eight rule-based
+checks and appends an ``arabic_grammar`` (``--lang ar``) or ``english_grammar``
+(``--lang en``) row. The grammar backend is the ``languagetool`` MCP server,
+spawned over stdio JSON-RPC; when it is unavailable the row degrades to WARN
+so a missing optional dependency never turns a clean chapter into a FAIL.
 
 ``--config`` accepts either a path to ``style-guide.md`` (P2-era behavior)
 or a book-root directory containing both ``style-guide.md`` and ``bible.md``
@@ -28,6 +34,7 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -485,10 +492,175 @@ def sentence_length(chapter_md, target_median=22):
 
 
 # ---------------------------------------------------------------------------
+# LanguageTool grammar check via the `languagetool` MCP server (P10)
+# ---------------------------------------------------------------------------
+
+LANG_CHECK_NAMES = {"ar": "arabic_grammar", "en": "english_grammar"}
+
+# The MCP entry mirrors ~/.config/opencode/opencode.json:
+#   "languagetool": {"type": "local", "command": "npx",
+#                    "args": ["-y", "@goncalomb/languagetool-mcp"], ...}
+# The package downloads the LanguageTool server + language packs on first call,
+# so the first invocation is slow; the 60s timeout matches the MCP entry.
+LANGUAGETOOL_MCP_ARGV = ["npx", "-y", "@goncalomb/languagetool-mcp"]
+LANGUAGETOOL_MCP_TIMEOUT = 60
+
+
+def _mcp_request_payload(text, lang):
+    """Build the newline-delimited JSON-RPC handshake + ``tools/call`` body.
+
+    MCP's stdio transport is newline-delimited JSON-RPC (not Content-Length
+    framed), so the whole conversation can be handed to ``communicate()`` in
+    one write: initialize, the initialized notification, then the tool call.
+    """
+    messages = [
+        {"jsonrpc": "2.0", "id": 1, "method": "initialize",
+         "params": {"protocolVersion": "2024-11-05",
+                    "capabilities": {},
+                    "clientInfo": {"name": "check_chapter.py", "version": "1.0"}}},
+        {"jsonrpc": "2.0", "method": "notifications/initialized", "params": {}},
+        {"jsonrpc": "2.0", "id": 2, "method": "tools/call",
+         "params": {"name": "check_text",
+                    "arguments": {"text": text, "language": lang}}},
+    ]
+    return "".join(json.dumps(m, ensure_ascii=False) + "\n" for m in messages)
+
+
+def _normalize_issue(raw):
+    """Coerce one LanguageTool match into the script's issue shape.
+
+    LanguageTool's own payload uses ``rule: {id: ...}`` and
+    ``replacements: [{value: ...}]``; the MCP server may flatten those to
+    ``rule_id`` / ``suggestions``. Accept both so a server-side format change
+    doesn't silently drop the rule id.
+    """
+    rule = raw.get("rule")
+    rule_id = raw.get("rule_id") or (rule.get("id") if isinstance(rule, dict) else rule)
+    suggestions = raw.get("suggestions")
+    if suggestions is None:
+        suggestions = [r.get("value") if isinstance(r, dict) else r
+                       for r in raw.get("replacements") or []]
+    return {
+        "message": raw.get("message", ""),
+        "offset": raw.get("offset", 0),
+        "length": raw.get("length", 0),
+        "rule_id": rule_id or "",
+        "suggestions": [s for s in suggestions if s],
+    }
+
+
+def _extract_issues(result):
+    """Pull the issue list out of an MCP ``tools/call`` result.
+
+    Three shapes are tolerated, in priority order:
+      - ``{"content": [{"type": "text", "text": "<json>"}]}`` — the standard
+        MCP text-content envelope; the inner text is parsed as JSON.
+      - ``{"matches": [...]}`` — LanguageTool's native response, passed through.
+      - a bare list — the simplest server implementation.
+    """
+    if isinstance(result, list):
+        return [_normalize_issue(i) for i in result if isinstance(i, dict)]
+    if not isinstance(result, dict):
+        return []
+    content = result.get("content")
+    if isinstance(content, list):
+        for block in content:
+            if not isinstance(block, dict) or "text" not in block:
+                continue
+            try:
+                inner = json.loads(block["text"])
+            except (TypeError, ValueError):
+                continue
+            issues = _extract_issues(inner)
+            if issues:
+                return issues
+        return []
+    matches = result.get("matches")
+    if isinstance(matches, list):
+        return [_normalize_issue(i) for i in matches if isinstance(i, dict)]
+    return []
+
+
+def _parse_mcp_stdout(stdout):
+    """Scan newline-delimited JSON-RPC output for the ``tools/call`` response.
+
+    Non-JSON lines (npm progress chatter on the first download) are skipped
+    rather than treated as a protocol error.
+    """
+    for line in (stdout or "").splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            msg = json.loads(line)
+        except ValueError:
+            continue
+        if not isinstance(msg, dict) or msg.get("id") != 2:
+            continue
+        if "error" in msg:
+            raise RuntimeError(str(msg["error"]))
+        return _extract_issues(msg.get("result"))
+    raise RuntimeError("no tools/call response on MCP stdout")
+
+
+def _call_languagetool_mcp(text, lang):
+    """Spawn the MCP server and return the normalized issue list.
+
+    Raises on any transport failure; ``run_grammar_check`` converts that into
+    a WARN row so an absent Node / offline machine can't fail the gate.
+    """
+    proc = subprocess.Popen(
+        LANGUAGETOOL_MCP_ARGV,
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        encoding="utf-8",
+    )
+    try:
+        stdout, _stderr = proc.communicate(_mcp_request_payload(text, lang),
+                                           timeout=LANGUAGETOOL_MCP_TIMEOUT)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        proc.communicate()
+        raise RuntimeError(f"languagetool MCP timed out after {LANGUAGETOOL_MCP_TIMEOUT}s")
+    return _parse_mcp_stdout(stdout)
+
+
+def run_grammar_check(text, lang):
+    """Grammar row for ``--lang``: PASS on zero issues, FAIL otherwise.
+
+    ``lang`` is ``ar`` or ``en`` (argparse constrains it via ``choices``).
+    The check name follows the language: ``arabic_grammar`` / ``english_grammar``.
+    Evidence is ``"N issues found"``; a FAIL appends the first three messages
+    so the writer can act without re-running the tool.
+
+    A transport failure (Node missing, offline, server crash) yields WARN, not
+    FAIL - the grammar backend is an optional external dependency and must not
+    be able to block a chapter that passes the eight built-in rules.
+    """
+    name = LANG_CHECK_NAMES.get(lang, "grammar")
+    clean = outside(text)
+    try:
+        issues = _call_languagetool_mcp(clean, lang)
+    except (OSError, RuntimeError, ValueError) as e:
+        return [CheckResult(name, "WARN",
+                            f"languagetool MCP unavailable; grammar check skipped ({e})")]
+    if not issues:
+        return [CheckResult(name, "PASS", "0 issues found")]
+    detail = "; ".join(
+        f"{i['message']} (offset {i['offset']}, rule {i['rule_id']})" if i["rule_id"]
+        else f"{i['message']} (offset {i['offset']})"
+        for i in issues[:3]
+    )
+    return [CheckResult(name, "FAIL", f"{len(issues)} issues found: {detail}")]
+
+
+# ---------------------------------------------------------------------------
 # Orchestration
 # ---------------------------------------------------------------------------
 
-def run_all_checks(chapter_path, config, applicability=None):
+def run_all_checks(chapter_path, config, applicability=None, lang=None):
     """Run all eight checks against the chapter file at ``chapter_path``.
 
     ``config`` is the dict produced by ``read_style_guide``.
@@ -498,6 +670,10 @@ def run_all_checks(chapter_path, config, applicability=None):
     runtime ``applies_from`` default (3) when present; when absent,
     the default is preserved so a book whose ``bible.md`` doesn't carry
     the table still gets the P2-era behavior.
+
+    ``lang`` (P10) is ``None`` (grammar pass disabled, the P2-era default),
+    ``"ar"``, or ``"en"``. When set, a ninth grammar row is appended AFTER
+    the eight rule-based checks have all run.
     """
     text = read_md(chapter_path)
     if applicability is None:
@@ -514,6 +690,8 @@ def run_all_checks(chapter_path, config, applicability=None):
                               applies_from=applies_from))
     results.extend(arabic_punctuation(text))
     results.extend(sentence_length(text))
+    if lang:
+        results.extend(run_grammar_check(text, lang))
     return results
 
 
@@ -567,6 +745,10 @@ def main(argv=None):
                    help="task id used in the report filename + metadata (default: 'unknown')")
     p.add_argument("--report-dir", type=Path, default=Path("reports"),
                    help="directory prefix for the markdown report (default: ./reports)")
+    p.add_argument("--lang", type=str, default=None, choices=sorted(LANG_CHECK_NAMES),
+                   help="run a LanguageTool grammar pass in this language and append "
+                        "an arabic_grammar / english_grammar row (requires the "
+                        "languagetool MCP server)")
     args = p.parse_args(argv)
     _force_utf8_stdio()
 
@@ -577,7 +759,7 @@ def main(argv=None):
     style_guide_path, bible_path = _resolve_config_paths(args.config)
     config = read_style_guide(style_guide_path)
     applicability = parse_rule_applicability(bible_path)
-    results = run_all_checks(args.chapter, config, applicability)
+    results = run_all_checks(args.chapter, config, applicability, lang=args.lang)
     chapter_label = _chapter_label(args.chapter)
 
     if args.json:
