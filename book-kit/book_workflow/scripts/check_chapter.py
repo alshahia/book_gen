@@ -13,12 +13,20 @@ coupling would make future refactors slower.
 CLI:
     check_chapter.py <chapter.md> [--beat] [--json] [--config <style-guide.md|book-root>]
                          [--task <task-id>] [--report-dir <root>] [--lang <ar|en>]
+                         [--check-imports]
 
 ``--lang`` (P10) runs a LanguageTool grammar pass after the eight rule-based
 checks and appends an ``arabic_grammar`` (``--lang ar``) or ``english_grammar``
 (``--lang en``) row. The grammar backend is the ``languagetool`` MCP server,
 spawned over stdio JSON-RPC; when it is unavailable the row degrades to WARN
 so a missing optional dependency never turns a clean chapter into a FAIL.
+
+``--check-imports`` (P14) appends a ninth ``check_imports`` row that walks
+the chapter's Python code listings for ``from X import Y`` lines and
+verifies each top-level package is pinned in the chapter's ``uv.lock``
+(produced by ``pin_deps.py`` at ``<book>/chapters/code/ch-NN/uv.lock``).
+A missing ``uv.lock`` degrades to PASS-with-skip evidence so a chapter
+written before its deps are pinned is never turned into a FAIL.
 
 ``--config`` accepts either a path to ``style-guide.md`` (P2-era behavior)
 or a book-root directory containing both ``style-guide.md`` and ``bible.md``
@@ -657,14 +665,139 @@ def run_grammar_check(text, lang):
 
 
 # ---------------------------------------------------------------------------
+# `check_imports` -- Python import -> uv.lock verification (P14)
+# ---------------------------------------------------------------------------
+
+# Fenced code blocks for Python: ```python or ```py or no info string.
+# We are deliberately permissive on the info string (an absent one is
+# also treated as Python) -- the chapter-writer convention is to either
+# write ```python explicitly or omit the info string for short snippets.
+_PYTHON_FENCE_RE = re.compile(
+    r"```(?:python|py)?[^\n]*\n(.*?)```", re.DOTALL
+)
+# Top-level package name on a `from X import Y` line. Relative imports
+# (`from .x import y`) start with a dot and are skipped at yield-time.
+_IMPORT_FROM_RE = re.compile(
+    r"^\s*from\s+([A-Za-z_][\w.]*)\s+import\s", re.MULTILINE
+)
+# `uv pip compile` (uv 0.7.x) emits one `name==version` line per resolved
+# package. Header / annotation lines start with `#` and are skipped.
+_LOCK_LINE_RE = re.compile(r"^([A-Za-z0-9_.\-]+)==([^\s]+)\s*$")
+
+
+def _extract_python_imports(chapter_md):
+    """Yield top-level package names from ``from X import Y`` lines.
+
+    Only lines inside Python fenced code blocks are scanned. The top-level
+    segment of a dotted module name (``from package.sub.module import x``)
+    yields just ``package``. ``from __future__ import ...`` and any other
+    underscore-prefixed name are skipped -- stdlib ``__future__`` is
+    implicit and never appears in a uv.lock.
+    """
+    seen = set()
+    for fence in _PYTHON_FENCE_RE.finditer(chapter_md):
+        body = fence.group(1)
+        for m in _IMPORT_FROM_RE.finditer(body):
+            top = m.group(1).split(".")[0]
+            if not top or top.startswith("_"):
+                continue
+            if top in seen:
+                continue
+            seen.add(top)
+            yield top
+
+
+def _load_lock_packages(lock_path):
+    """Parse a uv.lock into a set of top-level package names.
+
+    Returns ``None`` when the lock file is absent (the caller decides how
+    to surface that). The lock format is requirements.txt-style
+    (``name==version`` lines); annotation lines starting with ``#`` are
+    skipped. Names are lowercased for case-insensitive comparison against
+    PyPI's canonical casing.
+    """
+    p = Path(lock_path)
+    if not p.is_file():
+        return None
+    names = set()
+    for line in p.read_text(encoding="utf-8").splitlines():
+        m = _LOCK_LINE_RE.match(line)
+        if m:
+            names.add(m.group(1).lower())
+    return names
+
+
+def _book_root_from_chapter(chapter_path):
+    """Locate the book root from a chapter file path.
+
+    The chapter file conventionally lives at ``<book>/chapters/ch-NN.md``
+    so the book root is the parent of the ``chapters/`` directory. When
+    the chapter file is not under a ``chapters/`` directory we fall back
+    to its parent directory -- the caller's filesystem layout is theirs
+    to choose.
+    """
+    p = Path(chapter_path)
+    parent = p.parent
+    if parent.name == "chapters":
+        return parent.parent
+    return parent
+
+
+def check_imports(chapter_md, chapter_path=None,
+                  code_subdir="chapters/code"):
+    """Verify Python imports in code listings are pinned in uv.lock.
+
+    Looks for ``<book_root>/chapters/code/ch-NN/uv.lock``. The rule:
+
+      - PASS when no Python imports are found in the chapter's code
+        listings (nothing to verify).
+      - PASS with skip evidence when no uv.lock exists for the chapter
+        (deps not yet pinned; pin_deps.py hasn't been run for this
+        chapter). The rule never turns a chapter that hasn't been
+        pinned into a FAIL.
+      - FAIL when at least one import has no matching package in uv.lock.
+        Evidence carries the first few missing names so the writer can
+        act without re-running pin_deps.py.
+    """
+    chapter_num = _chapter_number_from_path(chapter_path) if chapter_path else None
+    if chapter_num is None:
+        return [CheckResult("check_imports", "PASS",
+                            "no chapter number in filename; check_imports skipped")]
+
+    imports = set(_extract_python_imports(chapter_md))
+    if not imports:
+        return [CheckResult("check_imports", "PASS",
+                            "no Python imports in code listings")]
+
+    book_root = _book_root_from_chapter(chapter_path)
+    lock_path = book_root / code_subdir / f"ch-{chapter_num:02d}" / "uv.lock"
+    locked = _load_lock_packages(lock_path)
+    if locked is None:
+        return [CheckResult("check_imports", "PASS",
+                            f"no uv.lock at {lock_path.as_posix()}; "
+                            f"{len(imports)} import(s) unverified")]
+
+    missing = sorted({p.lower() for p in imports} - locked)
+    if missing:
+        shown = ", ".join(missing[:8])
+        more = "" if len(missing) <= 8 else "..."
+        return [CheckResult("check_imports", "FAIL",
+                            f"{len(missing)} import(s) not in uv.lock: "
+                            f"{shown}{more}")]
+    return [CheckResult("check_imports", "PASS",
+                        f"all {len(imports)} import(s) verified against uv.lock")]
+
+
+# ---------------------------------------------------------------------------
 # Orchestration
 # ---------------------------------------------------------------------------
 
-def run_all_checks(chapter_path, config, applicability=None, lang=None):
+def run_all_checks(chapter_path, config, applicability=None, lang=None,
+                   check_imports_enabled=False):
     """Run all eight checks against the chapter file at ``chapter_path``.
 
     ``config`` is the dict produced by ``read_style_guide``.
-    ``applicability`` is the dict produced by ``parse_rule_applicability`` —
+    ``applicability`` is the dict produced by ``parse_rule_applicability`` --
     empty when ``bible.md`` is absent or has no ``## Rule applicability``
     section. The ``Countdown ≥1`` row's chapter number overrides the
     runtime ``applies_from`` default (3) when present; when absent,
@@ -674,6 +807,10 @@ def run_all_checks(chapter_path, config, applicability=None, lang=None):
     ``lang`` (P10) is ``None`` (grammar pass disabled, the P2-era default),
     ``"ar"``, or ``"en"``. When set, a ninth grammar row is appended AFTER
     the eight rule-based checks have all run.
+
+    ``check_imports_enabled`` (P14) defaults to False -- the rule is
+    opt-in via the ``--check-imports`` CLI flag. When True a ninth (or
+    tenth, when ``lang`` is also set) ``check_imports`` row is appended.
     """
     text = read_md(chapter_path)
     if applicability is None:
@@ -692,6 +829,8 @@ def run_all_checks(chapter_path, config, applicability=None, lang=None):
     results.extend(sentence_length(text))
     if lang:
         results.extend(run_grammar_check(text, lang))
+    if check_imports_enabled:
+        results.extend(check_imports(text, chapter_path=chapter_path))
     return results
 
 
@@ -749,6 +888,10 @@ def main(argv=None):
                    help="run a LanguageTool grammar pass in this language and append "
                         "an arabic_grammar / english_grammar row (requires the "
                         "languagetool MCP server)")
+    p.add_argument("--check-imports", action="store_true",
+                   help="verify Python imports in the chapter's code listings "
+                        "against <book>/chapters/code/ch-NN/uv.lock (P14). "
+                        "OFF by default to preserve P2-P13 back-compat.")
     args = p.parse_args(argv)
     _force_utf8_stdio()
 
@@ -759,7 +902,9 @@ def main(argv=None):
     style_guide_path, bible_path = _resolve_config_paths(args.config)
     config = read_style_guide(style_guide_path)
     applicability = parse_rule_applicability(bible_path)
-    results = run_all_checks(args.chapter, config, applicability, lang=args.lang)
+    results = run_all_checks(args.chapter, config, applicability,
+                              lang=args.lang,
+                              check_imports_enabled=args.check_imports)
     chapter_label = _chapter_label(args.chapter)
 
     if args.json:

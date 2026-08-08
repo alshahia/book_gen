@@ -536,7 +536,106 @@ def test_check_chapter_lang_mcp_unreachable_yields_warn(tmp_project):
     )
 
 
-# Total: 15 tests above (P10-fix1 added the WARN-degradation test). The CLI
+# ---------------------------------------------------------------------------
+# 16) --check-imports: every `from X import Y` is in uv.lock -> PASS
+# ---------------------------------------------------------------------------
+
+def test_check_imports_valid_pinned(tmp_project):
+    """A chapter with a Python code listing whose imports are all listed
+    in the chapter's ``uv.lock`` must produce a ``PASS`` ``check_imports``
+    row when ``--check-imports`` is enabled. Mirrors the spec's "1 fixture
+    with valid pinned dep -> PASS" acceptance criterion.
+    """
+    # Plant uv.lock with the two pinned deps the chapter will import.
+    lock_dir = tmp_project / "chapters" / "code" / "ch-07"
+    lock_dir.mkdir(parents=True, exist_ok=True)
+    (lock_dir / "uv.lock").write_text(
+        "requests==2.34.2\n"
+        "pyyaml==6.0.3\n",
+        encoding="utf-8",
+    )
+
+    chapter = (
+        "# Chapter 7\n\n"
+        "## Code listing\n\n"
+        "```python\n"
+        "from requests import get\n"
+        "from pyyaml import safe_load\n"
+        "```\n\n"
+        "Closing paragraph.\n"
+    )
+    chapter_path = _write_chapter(tmp_project, "ch-07.md", chapter)
+
+    results = cc.run_all_checks(
+        chapter_path, cc.read_style_guide(None),
+        applicability={}, check_imports_enabled=True,
+    )
+    r = _find(results, "check_imports")
+    assert r.status == "PASS", (
+        f"expected PASS for fully-pinned chapter; got {r.status}; "
+        f"evidence={r.evidence}"
+    )
+    assert "2 import(s) verified against uv.lock" in r.evidence, (
+        f"expected the 2-imports-verified evidence; got {r.evidence!r}"
+    )
+    # The rule is additive: 8 rule rows + 1 check_imports row.
+    assert len(results) == 9, (
+        f"expected 8 rule rows + 1 check_imports row; got "
+        f"{[(x.name, x.status) for x in results]}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# 17) --check-imports: at least one import is not in uv.lock -> FAIL
+# ---------------------------------------------------------------------------
+
+def test_check_imports_unpinned_fails(tmp_project):
+    """A chapter with an import whose top-level package is NOT pinned in
+    uv.lock must produce a FAIL ``check_imports`` row with clear
+    evidence. Mirrors the spec's "1 with unpinned dep -> FAIL" acceptance
+    criterion.
+    """
+    # Plant a uv.lock that intentionally omits one of the chapter's imports.
+    lock_dir = tmp_project / "chapters" / "code" / "ch-09"
+    lock_dir.mkdir(parents=True, exist_ok=True)
+    (lock_dir / "uv.lock").write_text(
+        "pyyaml==6.0.3\n",  # only pyyaml; requests is missing
+        encoding="utf-8",
+    )
+
+    chapter = (
+        "# Chapter 9\n\n"
+        "## Code listing\n\n"
+        "```python\n"
+        "from requests import get\n"
+        "from pyyaml import safe_load\n"
+        "```\n\n"
+        "Closing paragraph.\n"
+    )
+    chapter_path = _write_chapter(tmp_project, "ch-09.md", chapter)
+
+    results = cc.run_all_checks(
+        chapter_path, cc.read_style_guide(None),
+        applicability={}, check_imports_enabled=True,
+    )
+    r = _find(results, "check_imports")
+    assert r.status == "FAIL", (
+        f"expected FAIL when an import is missing from uv.lock; got {r.status}; "
+        f"evidence={r.evidence}"
+    )
+    assert "requests" in r.evidence, (
+        f"expected the missing import name in evidence; got {r.evidence!r}"
+    )
+    assert "not in uv.lock" in r.evidence, (
+        f"expected 'not in uv.lock' wording; got {r.evidence!r}"
+    )
+    # pyyaml is pinned -> must NOT appear in the FAIL evidence.
+    assert "pyyaml" not in r.evidence, (
+        f"pinned deps should not appear in FAIL evidence; got {r.evidence!r}"
+    )
+
+
+# Total: 17 tests above (P14 added the 2 check_imports fixtures). The CLI
 # smoke test (argparse + --json + main()
 # integration) is verified manually in the acceptance criteria
 # (`python check_chapter.py ...`); the 8 rule-level tests above use the

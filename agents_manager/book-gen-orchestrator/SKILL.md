@@ -151,6 +151,23 @@ This requires mermaid-cli on PATH (`npm install -g @mermaid-js/mermaid-cli`). Ha
 
 Re-runs are idempotent: an unchanged book produces a byte-identical manifest.
 
+### Code-dependency pinning (master runs `pin_deps.py`)
+
+Technical books with code listings under `books/<slug>/chapters/code/ch-NN/` carry Python deps declared in `requirements.txt` or `pyproject.toml`. Before `check_chapter.py --check-imports` runs (either here in Phase 6 or downstream in Phase 7), master pins those deps so the chapter's `uv.lock` exists for the import-verifier to consult:
+
+```sh
+python book-kit/book_workflow/scripts/pin_deps.py --book books/<slug>
+```
+
+The script walks `chapters/code/ch-NN/` for each chapter, runs `uv pip compile <input> -o <ch-NN>/uv.lock`, and emits `chapters/code/CH-DEP-STATUS.md` with `{chapter, packages, lock_status}` rows. Per-chapter: `pyproject.toml` wins over `requirements.txt` when both exist. The script needs `uv` on PATH (`pip install uv`); chapters under a missing `uv` binary surface `lock_status: uv_missing` so a human can install uv and re-run — the pipeline does not block on it.
+
+This step is **informational and idempotent** for prose books (no `chapters/code/` directory exists, the script writes an empty status table and exits 0). For technical books with code listings, the status table is the audit trail the reviewer cites when checking that every chapter's imports are reproducible.
+
+Exit codes the orchestrator must handle:
+
+- **Exit 0** — status table written; advance to Phase 7 review. The reviewer should cite `CH-DEP-STATUS.md` and `check_chapter.py --check-imports --json` output as evidence the chapter's Python imports are pinned.
+- **Exit 2** — input error (`--book` missing, `--code-dir` escapes the book root). Treat as a configuration defect; nothing was written.
+
 ### PDF build (master runs `md2pdf.py --book`)
 
 After the gate artifact is in place, master assembles the final PDF by handing the whole book to `md2pdf.py --book`:
@@ -209,6 +226,8 @@ python book-kit/book_workflow/scripts/gate_summary.py \
 ```
 
 The script reads the P2 `check_chapter_ch-NN.md` (or `.json`), the P3 `book_check.json`, and the reviewer's last `04_review_*.md` (default task `T-2026-08-05-001`). It writes `share/reports/<task>/02_gate_ch-NN_<task>.md` with the canonical 5-field block (`Word count`, `Book-check`, `Reviewer`, `Frozen lines touched`, `Open questions`) and a status line of `APPROVED`, `FIX-LOOP-N`, or `REJECTED` per plan §P6. Exit codes: 0 = APPROVED, 1 = FIX-LOOP-N or REJECTED, 2 = input error. For the first review pass the `04_review_*.md` may not exist yet — pass `--review <path-to-P3-book-check-or-stub>` or use the script's n/a fallback (the gate artifact is informational; the reviewer's own verdict is authoritative for the ledger update).
+
+For technical books with code listings, master should also re-run `python book-kit/book_workflow/scripts/check_chapter.py chapters/ch-NN.md --check-imports --json` so the gate bundle carries the `check_imports` row alongside the eight rule-based checks. The P14 `pin_deps.py` step in Phase 6 guarantees the `<book>/chapters/code/ch-NN/uv.lock` is on disk; the `--check-imports` row is FAIL only when a chapter imports a package that `uv.lock` does not pin, so missing-dep chapters surface as a developer-visible defect before the reviewer sees them. For prose books (no `chapters/code/` directory) this flag is a no-op and the row reports PASS-with-skip evidence.
 
 ### Branch A — Translation mode (intake §10 `Is translation? = yes` AND `source-map.md` present)
 

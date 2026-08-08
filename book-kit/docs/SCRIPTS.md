@@ -127,6 +127,7 @@ pre-publish gates.
 ```sh
 python check_chapter.py <chapter.md> [--config <style-guide.md>]
                             [--json] [--task <task-id>] [--report-dir DIR]
+                            [--lang <ar|en>] [--check-imports]
 ```
 
 **Flags:**
@@ -137,6 +138,8 @@ python check_chapter.py <chapter.md> [--config <style-guide.md>]
 | `--json` | false | Emit `{"chapter": "ch-NN", "checks": [{name, status, evidence}]}` to stdout instead of writing the markdown report. |
 | `--task ID` | `unknown` | Task id used in the markdown report's filename + metadata header. |
 | `--report-dir DIR` | `reports` | Directory prefix; markdown report is written to `<DIR>/<task-id>/check_chapter_<chapter>.md`. |
+| `--lang <ar\|en>` | (none) | Append a `arabic_grammar` / `english_grammar` row via LanguageTool MCP. See `### check_chapter.py --lang` below. |
+| `--check-imports` | false | Append a `check_imports` row that walks Python fenced code blocks for `from X import Y` and verifies each `X` is pinned in `<book>/chapters/code/ch-NN/uv.lock`. See `### check_chapter.py --check-imports` below. |
 
 **Checks (all return `CheckResult(name, status, evidence)`):**
 | Check | Source | Failure / Warn rule |
@@ -229,6 +232,114 @@ on the host -- LanguageTool is a JVM service.
 python check_chapter.py chapters/ch-03.md --config style-guide.md \
     --lang ar --json | jq '.checks[] | select(.name=="arabic_grammar")'
 ```
+
+### check_chapter.py --check-imports
+
+- Flag: `--check-imports`
+- Behavior: walks every Python fenced code block in the chapter for
+  `from X import Y` lines and verifies the top-level package `X` is
+  pinned in `<book>/chapters/code/ch-NN/uv.lock`.
+- Output: adds a `check_imports` row to the JSON / markdown report.
+- Requires: `pin_deps.py` (P14) to have run first so `uv.lock` exists.
+
+The rule is **additive and opt-in** -- without `--check-imports` the
+script behaves exactly as before (8 rows). When the flag is set:
+
+| Situation | Row status |
+|---|---|
+| No Python imports in the chapter's code listings | `PASS` ("no Python imports in code listings") |
+| `uv.lock` missing for `ch-NN` (pin_deps.py not yet run) | `PASS` with skip evidence (the rule never turns an unpinned chapter into a `FAIL`) |
+| Every imported package appears in `uv.lock` | `PASS` ("all N import(s) verified against uv.lock") |
+| At least one imported package is missing from `uv.lock` | `FAIL` (evidence lists the missing names, up to 8) |
+
+Package names are matched case-insensitively (PyPI canonical casing).
+Top-level segments only -- `from package.sub.module import x` matches
+`package`, not `package.sub.module`. Dunder names like `__future__` are
+ignored. The chapter number is read from the filename (`ch-NN.md`), so
+chapter files outside that pattern (`introduction.md`, `preface.md`,
+`app-*.md`) skip the rule with PASS evidence.
+
+The rule looks up `<book>` by walking up from the chapter file: when
+the chapter is at `<book>/chapters/ch-NN.md`, `<book>` is the parent of
+`chapters/`. The chapter number drives the lock path
+(`<book>/chapters/code/ch-NN/uv.lock`); the `chapters/code/` segment is
+hard-coded (it matches the `pin_deps.py` default).
+
+```sh
+# Per-chapter gate with the check_imports row appended
+python check_chapter.py chapters/ch-07.md --check-imports --json \
+    | jq '.checks[] | select(.name=="check_imports")'
+```
+
+---
+
+## pin_deps.py (P14)
+
+Per-chapter-code dependency pinner. Walks `<book>/chapters/code/ch-NN/`
+looking for `requirements.txt` or `pyproject.toml`, runs
+`uv pip compile <input> -o <output>/uv.lock` (uv 0.7+), copies the
+generated `uv.lock` next to the input, and emits
+`<book>/chapters/code/CH-DEP-STATUS.md` with a per-chapter row
+`{chapter, packages, lock_status}`. Designed to run before
+`check_chapter.py --check-imports` so the lock file the check consults
+is already on disk.
+
+**External dependency (required):**
+```sh
+pip install uv
+```
+
+**Usage:**
+```sh
+python pin_deps.py --book books/<slug>/ [--code-dir chapters/code]
+```
+
+**Flags:**
+| Flag | Default | Behavior |
+|---|---|---|
+| `--book` | (required) | Book root; the `--code-dir` is resolved relative to this. |
+| `--code-dir` | `chapters/code` | Code directory under the book root. Refuses any value with a `..` component or that escapes `--book` (P4 #14 / P6 inheritance). |
+
+**Input preference per chapter:** when both `pyproject.toml` and
+`requirements.txt` exist in the same chapter dir, `pyproject.toml` wins
+(more expressive; matches the project's own metadata conventions).
+Neither file present -> the chapter gets `lock_status: missing_input` and
+the script moves on.
+
+**Subprocess contract:** `uv pip compile` is invoked array-form as
+`["uv", "pip", "compile", <input>, "-o", <output>, "--quiet"]` with
+`capture_output=True, text=True, timeout=120`. Never `shell=True`. A
+non-zero exit surfaces the captured stderr in the status row evidence
+(truncated to 500 chars).
+
+**uv missing:** when `uv` is not on PATH, every chapter with a dep file
+gets `lock_status: uv_missing` (the script never crashes; the surfaced
+state is the missing binary). stderr prints one line per chapter with
+the install hint.
+
+**Lock format:** `uv pip compile` 0.7.x writes `uv.lock` in
+requirements.txt-style (`name==version` lines). The script counts
+those lines for the `packages` column; the count includes transitive
+deps (e.g. `requests` pulls in `urllib3`, `certifi`, `idna`,
+`charset-normalizer`).
+
+**Status table format:**
+```
+| Chapter | Packages | Lock status |
+| --- | --- | --- |
+| ch-07 | 12 | pinned |
+| ch-09 | 0 | uv_missing |
+```
+
+When `chapters/code/` is empty or absent, the file is still written
+with a single placeholder row (`| -- | -- | -- |`) so the file is
+non-empty and re-runs are byte-stable.
+
+**Exit codes:** 0 = status file written, 2 = input error (book root
+missing, `--code-dir` escapes `--book`).
+
+**Forces UTF-8 stdio** at module load before any argparse construction
+or output (WARN #15 / #22 inheritance).
 
 ---
 
