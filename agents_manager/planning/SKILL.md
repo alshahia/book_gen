@@ -242,7 +242,17 @@ Template for the section:
 | ... | ... | ... | ... |
 ```
 
-If a component has no landscape entry in the research, the row reads "unscanned — re-dispatch am-research before plan lock". Do not invent choices.
+If a component has no landscape entry in the research, the row reads "unscanned -- re-dispatch am-research before plan lock". Do not invent choices.
+
+## Book-kit tool awareness (when the project has `book-kit/`)
+
+When the repo has a `book-kit/` directory (i.e., a book-writing project), the task may involve extending the book-kit's tool surface. Before writing a "build from scratch" decision, check **`book-kit/docs/TOOLKIT.md`** to see if the kit already has a tool for the same purpose. Common planning pitfalls:
+
+- **Re-implementing a gate**: `book_check.py` + `check_chapter.py` cover prose gates. Don't propose building another prose-rule engine.
+- **Re-implementing a renderer**: `md2pdf.py --book` (P12) + `render_mermaid.py` (P11) + `visual_qa.py` (P13) cover PDF/figure/visual-QA. Don't propose a new renderer unless the existing one has a documented gap.
+- **Re-implementing knowledge-graph queries**: `book-kg` MCP (P18) covers motif/character/continuity queries. Don't propose a new graph layer.
+
+When the plan calls for modifying the book-kit, the plan row should reference the existing tool + the spec section (e.g., "P6 gate_summary.py extension: add invocation count" rather than "build a new gate tool"). When the plan calls for adding a NEW tool beyond P1-P18, that's a deliberate scope expansion -- surface to user.
 
 ## What you can do (your lane)
 

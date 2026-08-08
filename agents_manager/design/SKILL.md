@@ -188,6 +188,19 @@ All outputs go under `share/design/<task-id>/`. Use `resources/output-skeleton.m
 - **`ILLUSTRATE`** → `07_primitives/icons/<name>.svg` + `07_primitives/icons/sprite.svg` + `07_primitives/icons/specimen.html` (use `resources/icon-template.svg`)
 - **`TRANSLATE`** → `08_translations/<locale>/` — parallel structure to source locale, with locale-specific adaptations noted
 
+## Book-kit tool awareness (when the project has `book-kit/`)
+
+When the repo has a `book-kit/` directory (i.e., a book-writing project), the dispatch may ask you to do style-guide or visual-sample work. The canonical reference is **`book-kit/docs/TOOLKIT.md`**.
+
+Specific am-design touch points in the book-kit:
+
+- **`book-kit/examples/`** (P16) -- 10 HTML + 10 PDF samples covering `dialogue-{dense,sparse}`, `tashkeel-{full,minimal,none}`, `separator-{asterism,blank,ornament}`, `closing-hook-{long,short}`. When the user asks for a visual-style decision, link to the relevant sample. Each sample is the same 430-word Arabic prose at different style choices -- diffing two samples shows the choice and nothing else.
+- **`book-kit/docs/STYLE_DECISIONS.md`** (P16) -- pairs each sample with a "Use when / Avoid when" rule. When you produce a style guide, you can cite these rules directly.
+- **`book-kit/book_workflow/book-agents/templates/style-guide.md`** -- the canonical style-guide template. Phase 4 of the book-gen pipeline (orchestrator dispatches am-design here) writes a `books/<slug>/style-guide.md` from this template. The template's `## Rule applicability` table (P5) supports chapter-specific overrides.
+- **`book_check.py` + `check_chapter.py`** -- when your design work introduces a new style decision (e.g., "all dialogue uses em-dash"), check whether the kit's mechanical gate already enforces it. If not, file a follow-up task to extend the rule. Don't write prose that the gate will reject.
+
+When am-design is called upon to extend `book-kit/examples/`, the per-sample hardening rules (ASCII wrapper, Arabic body OK, single 430-word base, real Chrome-rendered PDF where possible) apply -- see `book-kit/docs/TOOLKIT.md` section on Samples.
+
 ### Always (every dispatch)
 
 - `share/design/<task-id>/00_brief.md` — restated user task + the 7 discovery answers (medium, audience, constraints, artifact set, mode set, scope tier, success criteria). **Mandatory even on re-entry** — overwrite or append.

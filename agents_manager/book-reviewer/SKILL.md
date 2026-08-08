@@ -18,6 +18,17 @@ version: 0.22.0
 
 When the project is native book-gen (no source files), am-review falls back to the standard 3-pass posture (dev / line / copy) per the controller's review SKILL.md. This skill is translation-specific.
 
+## Tools this skill uses (canonical reference at `book-kit/docs/TOOLKIT.md`)
+
+This skill invokes four book-kit tools:
+
+- **`book_check.py`** (P1 + P3 + P8) -- mechanical gate already ran before review; you can re-run `--json` to cite evidence in the review report (per-chapter line numbers).
+- **`check_chapter.py --check-imports --json`** (P14) -- for technical books, the gate artifact's `check_imports` row is the canonical evidence that code listings are pinned. Cite the JSON output if a chapter's imports are FAIL.
+- **`gate_summary.py`** (P6 + P17) -- master runs this BEFORE your review. Read the resulting `02_gate_ch-NN_<task>.md` to see the canonical 6-field block (Word count, Book-check, Reviewer, Reviewer invocations, Frozen lines touched, Open questions). The status line (`APPROVED` / `FIX-LOOP-N` / `REJECTED`) is informational; your verdict is authoritative for the ledger update.
+- **`book-kg` MCP query tools** (P18) -- `trace_path(motif, ch_start, ch_end)`, `motifs_in_chapter(chapter)`, `contradicts(line)`, `references(chapter)`. Use these to validate motif persistence, frozen-line consistency, and cross-chapter references. The DB is at `<book>/.book-kg.db`; the MCP host wires it as `<name>book-kg</name>` in `~/.config/opencode/opencode.json`. If the MCP is unavailable, fall back to grep over `bible.md` + `style-guide.md`.
+
+The full pipeline + tool catalog is in the orchestrator's SKILL.md and `book-kit/docs/TOOLKIT.md`. Don't run tools outside your lane (e.g., don't run `book_check.py` or `check_chapter.py` to fix issues -- that's the writer's lane); cite the evidence in your review.
+
 ## Pass 1 — Accuracy vs. source
 
 Compare the translated chapter against the corresponding source file (resolved via `source-map.md` → `source/<file>`).

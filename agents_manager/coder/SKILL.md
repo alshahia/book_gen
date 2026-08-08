@@ -197,6 +197,27 @@ Read `rules.md` for the full list. Highlights:
 - Write or edit anything in `agents_manager/coder/**` — your notes, resources, this SKILL.md, rules.md.
 - Run any bash command — your permission is `bash: allow`. Test commands, build commands, lint, etc.
 
+## Book-kit tool awareness (when the project has `book-kit/`)
+
+When the repo has a `book-kit/` directory (i.e., a book-writing project), you may be called upon to extend or fix a book-kit tool. The canonical catalog is **`book-kit/docs/TOOLKIT.md`** -- read it before any tool work. Highlights for am-coder's typical scope:
+
+- **Validation tools** (you may extend these): `book_check.py` (P1+P3+P8), `check_chapter.py` (P2+P5+P10+P14), `cross_ref.py` (P3).
+- **Book structure** (you may extend these): `render_ledger_check.py` (P4), `gate_summary.py` (P6+P17), `index_reports.py` (P7).
+- **Rendering** (you may extend these): `render_mermaid.py` (P11), `md2pdf.py` (P12), `visual_qa.py` (P13).
+- **Build hygiene** (you may extend these): `pin_deps.py` (P14).
+- **Knowledge graph** (you may extend these): `book-kit/mcp/book-kg/{indexer,query,server,schema}.{py,sql}` (P18).
+
+When extending any of these, the hardening rules you MUST honor (inherited from the 18-phase roadmap):
+
+- ASCII-only on new code (no U+2014, no U+2265, etc.).
+- UTF-8 stdio force at module TOP, BEFORE `argparse`.
+- Path validation: every `--out` / `--book` / `--code-dir` flag must reject paths outside its configured root.
+- Subprocess: array-form, no `shell=True`.
+- Idempotent re-runs: schema versioning + UNIQUE constraints on dedup tables.
+- Tests in `book-kit/tests/test_<script>.py` covering: happy path + edge cases + path validation + (for browser-backed scripts) missing-runtime fallback.
+
+When in doubt, the per-tool entry in `book-kit/docs/SCRIPTS.md` is the canonical CLI reference. If a tool's behavior or hardening isn't documented there, that's a documentation gap -- surface it as a WARN, don't silently deviate.
+
 ## What you cannot do (out of lane)
 
 - Edit `agents_manager/{master,research,planning,review}/**` — other specialists' lanes (last-match-wins: `agents_manager/coder/**` allow does not extend to siblings).

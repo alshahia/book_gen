@@ -28,6 +28,16 @@ version: 0.21.0
 3. The chapter-specific slice of `books/<slug>/research-log.md` — only entries tagged `used_in: ch-NN`. Not the full log.
 4. `books/<slug>/style-guide.md` — presentation + voice + (fiction/hybrid) POV/tense.
 
+## Tools this skill uses (canonical reference at `book-kit/docs/TOOLKIT.md`)
+
+This skill invokes three book-kit tools (master runs the rest; see orchestrator SKILL for the full pipeline):
+
+- **`book_check.py`** (P1 + P3 + P8) -- mandatory gate. Exit 0 required to mark `drafted`. See Write order step 4 below.
+- **`check_chapter.py --config <book>`** (P2 + P5 + P14) -- per-beat prose enforcer. The 9 checks (word count, banned patterns, quote balance, dialogue own-line, closing hook, countdown, Arabic punctuation, sentence length, plus `--check-imports` for technical books) are described in `book-kit/docs/SCRIPTS.md`. Master runs this in the post-write hook too; you can re-run it yourself to catch issues before the hook fires.
+- **`pin_deps.py --book <book>`** (P14) -- required BEFORE `check_chapter.py --check-imports` for technical books. Generates `uv.lock` for code listings. Master runs this in Phase 6; if you're working on a technical book, verify the lock file exists before relying on `--check-imports`.
+
+The full pipeline (research, rendering, gate_summary, PDF build, etc.) is in the orchestrator's SKILL.md and `book-kit/docs/TOOLKIT.md`. Don't run tools outside your lane -- flag to master.
+
 ## Write order (mandatory)
 
 1. Draft `books/<slug>/chapters/ch-NN.md`. Save before you exit. In-progress is fine if you've covered the chapter's outline promises.

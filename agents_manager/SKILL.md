@@ -422,7 +422,9 @@ Skills are non-roster procedures (e.g., `agents_manager/extract/SKILL.md`) any s
 
 ## Book-gen mechanical gates (v0.21.0+)
 
-When book-gen mode is active (master loaded `agents_manager/book-gen-orchestrator/SKILL.md`), THREE scripts at `book_workflow/scripts/` enforce hard gates. The dispatch-prompt boundary is a soft wall; the script exit code is the hard wall.
+When book-gen mode is active (master loaded `agents_manager/book-gen-orchestrator/SKILL.md`), the kit ships roughly 20 scripts at `book-kit/book_workflow/scripts/`. The canonical catalog is **`book-kit/docs/TOOLKIT.md`** -- read it once per book-gen task to internalize which tools run at which phase. The TOOLKIT file is the registry of record; do not duplicate tool lists in agent SKILL.md files.
+
+The three HARD gates (failure stops the pipeline):
 
 | Gate | Script | When | Failure mode |
 |---|---|---|---|
@@ -430,11 +432,17 @@ When book-gen mode is active (master loaded `agents_manager/book-gen-orchestrato
 | Annotation strip | `strip_publish_annotations.py` | Before any export (Phase 5b / Phase 7 final) | If exit ≠ 0, master re-runs the chapter writer to clean. |
 | Export build | `build_exports.py` | Phase 5b final-export step (after copy-edit pass) | If exit ≠ 0, master surfaces the failure to the user. |
 
+Plus the soft gates master runs in the post-write hook (per `book-kit/docs/TOOLKIT.md` Pipeline map):
+- Phase 6: `check_chapter.py` (per-beat), `pin_deps.py` (technical books), `render_ledger_check.py`, `render_mermaid.py` (pre-PDF), `bash book-kit/bin/check-book-repo.sh` (beat tags), `book-kg indexer` (P18).
+- Phase 7: `gate_summary.py` (per-chapter gate artifact, pre-review).
+- Phase 8: `md2pdf.py --book`, `visual_qa.py`, `index_reports.py`.
+
 Master MUST:
 
-1. Verify the three scripts exist at the canonical path before dispatching the writer (first Phase 6 dispatch).
+1. Verify the three HARD-gate scripts exist at the canonical path before dispatching the writer (first Phase 6 dispatch).
 2. Capture each gate's exit code in the progress ledger (`share/notes/99_progress_<task-id>.md`).
 3. Never accept a "looks fine" claim from `am-coder` or `am-review` that contradicts a failed gate.
+4. When a soft-gate tool is missing a runtime dependency (Chrome, mmdc, pymupdf), follow the per-tool safe-degradation contract (exit 3 + clear stderr message). Master surfaces the degraded capability to the user; the book still proceeds if the writer's hard gate passed.
 
 See `book_workflow/docs/frozen-lines-spec.md` and `book_workflow/docs/build-exports-spec.md` for the full specs (T32, T33 — currently planned under `book_workflow/docs/`).
 

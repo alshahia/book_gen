@@ -32,6 +32,20 @@ Take a user from "I want to write a book about X" to one or more drafted, multi-
 | 5 — Writing plan | `books/<slug>/writing-plan.md` | **master directly** (reads outline + dep tags) | `book_workflow/book-agents/templates/writing-plan.md` | yes |
 | 6 — Writing | `books/<slug>/chapters/ch-NN.md` (+ bible + ledger update) | `am-coder` with `book-writer` skill loaded | — | only on chapter add/remove/reorder |
 | 7 — Review (per chapter) | ledger status update | `am-review` (3 separate invocations: dev / line / copy — OR 2-pass `book-reviewer` for translation mode when `source-map.md` present) | — | only on review-fail escalation |
+| 8 - Post-pipeline | `book-kit/exports/<slug>.pdf`, `share/reports/INDEX.md` | master (or design lead) | n/a | no (production artifacts) |
+
+## Available tools (canonical reference)
+
+The kit ships roughly 20 scripts and templates. The canonical catalog is at **`book-kit/docs/TOOLKIT.md`** -- when this skill or any specialist needs to invoke a tool, look it up there first. The TOOLKIT file includes:
+
+- **Pipeline map** showing which tool runs at which phase.
+- **Tool catalog** with name, path, purpose, when-to-use, key CLI flags, and exit codes.
+- **Per-tool hardening notes** (path validation, ASCII-only, UTF-8 stdio force, browser/runtime deps).
+- **Translation-mode-only tools** (split_source, fix_source_urls, etc.).
+
+**Do not duplicate tool lists in agent SKILL.md files.** Link to TOOLKIT.md instead. If a tool is missing from TOOLKIT.md, add it there -- that is the registry of record.
+
+The orchestrator's own tool invocations are called out inline in the phase sections below (Phase 2 research, Phase 6 writing, Phase 7 review, Phase 8 post-pipeline) -- those are the only places where this skill names specific tools by command.
 
 ## Phase 0 — Intake (master does this itself)
 

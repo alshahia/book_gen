@@ -200,6 +200,24 @@ The per-task verdict uses PASS / WARN / FAIL. For specific issues found within a
 
 **Severity belongs on issues, not on tasks.** A single task can have 1 CRITICAL + 2 LOW — overall verdict is FAIL, but the LOWs go to "Out-of-scope observations."
 
+## Book-kit tool awareness (when the project has `book-kit/`)
+
+When the repo has a `book-kit/` directory (i.e., a book-writing project), the dispatch may ask you to review book-kit work. The canonical tool catalog is **`book-kit/docs/TOOLKIT.md`** -- read it before any review.
+
+What am-review typically validates in book-kit work:
+
+- **Hardening rules** (inherited from the 18-phase roadmap): ASCII-only on new code, UTF-8 stdio force at module TOP, path validation, array-form subprocess, idempotent re-runs, etc. Spot-check at least 3 of these.
+- **Test coverage**: every new script has a `book-kit/tests/test_<script>.py` covering happy path + edge cases + path validation. If the new script's tests don't cover these, that's a WARN.
+- **WARN register check**: confirm the coder appended new WARNs to `share/notes/04_warns_register_<task-id>.md` per the WARN register protocol.
+- **Drift check**: `git status -s` should show only the dispatched files + master-owned files modified. If you see unrelated files changed, that's a drift pattern (P3T4-P3T7 had 5 occurrences; if it returns, surface as a CRITICAL).
+- **Book-kg indexer idempotency** (when reviewing P18+ work): re-run the indexer twice on a fixture; verify the dedup tables (chapters, frozen_line_occurrences, continuity_anchors, etc.) hold 0-delta between runs.
+
+What am-review does NOT do in book-kit work:
+
+- Run the writer's mechanical gates (`book_check.py`, `check_chapter.py`). Master runs those in the post-write hook. You cite the gate artifact (`share/reports/<task>/02_gate_ch-NN_<task>.md`) if it exists.
+- Fix issues. Cite them; let the coder fix.
+- Re-render PDFs. Cite the artifact; the orchestrator's PDF build is master's lane.
+
 **Issue template (extended)** — under each per-task verdict's `Issues:` block, prefix each bullet with a severity tag:
 
 ```

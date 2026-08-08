@@ -294,6 +294,8 @@ For host setup see `book-kit/docs/ARCHITECTURE.md` section
 "Multi-source research MCPs". For the dedup + canonicalize rules see
 `book-kit/book_workflow/scripts/dedup_results.py`.
 
+The canonical tool catalog for the book-kit (P9 scripts, MCP wiring, env vars) is in **`book-kit/docs/TOOLKIT.md`**.
+
 ---
 
 ## Preflight (v0.14.1+)
