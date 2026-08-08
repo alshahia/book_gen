@@ -188,24 +188,41 @@ that passes the eight built-in rules.
 ```json
 "languagetool": {
   "type": "local",
-  "command": "npx",
-  "args": ["-y", "@goncalomb/languagetool-mcp"],
-  "enabled": true,
+  "command": ["npx", "-y", "@goncalomb/languagetool-mcp"],
+  "enabled": false,
   "timeout": 60000
 }
 ```
 The package downloads the LanguageTool server and the requested language pack
 (`ar` / `en`) on first call, so the first run is slow. **Java 17+ is required**
-on the host — LanguageTool is a JVM service.
+on the host -- LanguageTool is a JVM service.
 
-> **Unresolved (P10):** `@goncalomb/languagetool-mcp` is not published on the
-> npm registry (`npm view` returns 404), and the tool name this script calls
-> (`check_text`) is therefore unverified against a live server. The entry ships
-> `"enabled": false` until the package name is confirmed. The script's grammar
-> row degrades to `WARN` while the server is unreachable, so `--lang` is safe to
-> pass in the meantime. Closest published alternative is
-> `@dpesch/languagetool-mcp-server`, but it targets the LanguageTool **Pro API**
-> (needs an API key; no local JVM), which is a different deployment shape.
+> **DEFERRED (P10):** `@goncalomb/languagetool-mcp` is not published on the
+> npm registry -- `npm view @goncalomb/languagetool-mcp` returns **404 Not
+> Found** (independently verified). The tool name this script calls
+> (`check_text`) is therefore unverified against a live server. The MCP entry
+> ships with `enabled: false` until the package name resolves.
+>
+> Behaviour while disabled:
+> - The script's `--lang ar` / `--lang en` row **degrades to `WARN`** whenever
+>   the MCP server is unreachable (transport failure, missing package, Node
+>   absent, offline host). An optional external dependency must never block a
+>   chapter that passes the eight built-in rules.
+> - `--lang` is **safe to pass** in the meantime: it adds the grammar row but
+>   cannot turn a passing chapter into a `FAIL`.
+> - The entry uses opencode's `McpLocalConfig.command` array form
+>   (`["npx", "-y", "..."]`) per the published schema
+>   (`$defs.McpLocalConfig.command` is `array<string>`; there is **no** `args`
+>   property).
+>
+> Re-enabling: once the package name, tool name, arguments, and Arabic pack
+> support are verified live, flip the single `"enabled": false` → `true` and
+> restart the MCP host. No code change is required.
+>
+> Closest published alternative is `@dpesch/languagetool-mcp-server`, but it
+> targets the LanguageTool **Pro API** (needs an API key; no local JVM; no
+> auto-downloaded Arabic pack) -- a materially different deployment shape,
+> and therefore not a drop-in replacement.
 
 ```sh
 # Arabic grammar pass on top of the eight prose rules

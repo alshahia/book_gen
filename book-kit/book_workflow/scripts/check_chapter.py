@@ -553,10 +553,10 @@ def _extract_issues(result):
     """Pull the issue list out of an MCP ``tools/call`` result.
 
     Three shapes are tolerated, in priority order:
-      - ``{"content": [{"type": "text", "text": "<json>"}]}`` — the standard
+      - ``{"content": [{"type": "text", "text": "<json>"}]}`` -- the standard
         MCP text-content envelope; the inner text is parsed as JSON.
-      - ``{"matches": [...]}`` — LanguageTool's native response, passed through.
-      - a bare list — the simplest server implementation.
+      - ``{"matches": [...]}`` -- LanguageTool's native response, passed through.
+      - a bare list -- the simplest server implementation.
     """
     if isinstance(result, list):
         return [_normalize_issue(i) for i in result if isinstance(i, dict)]

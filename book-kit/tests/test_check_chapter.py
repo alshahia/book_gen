@@ -476,7 +476,68 @@ def test_check_chapter_lang_planted_error(tmp_project):
     )
 
 
-# Total: 14 tests above. The CLI smoke test (argparse + --json + main()
+# ---------------------------------------------------------------------------
+# 15) --lang ar — MCP server unreachable → arabic_grammar WARN (not FAIL)
+# ---------------------------------------------------------------------------
+
+def test_check_chapter_lang_mcp_unreachable_yields_warn(tmp_project):
+    """When the MCP server can't be spawned (``subprocess.Popen`` raises
+    ``FileNotFoundError`` — the same shape Node-absent / npm-404 / offline
+    host produces), the ``arabic_grammar`` row must be ``WARN``, not
+    ``FAIL``. The grammar pass is an optional external dependency; a
+    missing backend must never turn a chapter that passes the eight
+    built-in rules into a FAIL.
+
+    Pinned in P10-fix1 because the spec'd npm package returns E404 and the
+    closest published alternative is a materially different deployment
+    shape — the script's safe-degradation path is the only thing keeping
+    ``--lang`` usable on a host without a working LanguageTool MCP.
+    """
+    chapter = (
+        "# الفصل\n\n"
+        "## المشهد الأول\n\n"
+        "ذهب الطالبان إلى المكتبة في الصباح الباكر.\n\n"
+        "خاتمة قصيرة.\n"
+    )
+    chapter_path = _write_chapter(tmp_project, "ch-04.md", chapter)
+
+    with patch.object(cc.subprocess, "Popen",
+                      side_effect=FileNotFoundError(
+                          "npx not found (or package unresolved on npm)")):
+        results = cc.run_all_checks(chapter_path, cc.read_style_guide(None),
+                                     applicability={}, lang="ar")
+
+    r = _find(results, "arabic_grammar")
+    assert r.status == "WARN", f"expected WARN; got {r.status}; evidence={r.evidence}"
+    assert "languagetool MCP unavailable" in r.evidence, (
+        f"expected the safe-degradation evidence; got {r.evidence!r}"
+    )
+    assert "npx not found" in r.evidence or "unresolved on npm" in r.evidence, (
+        f"expected the underlying error to surface in evidence; got {r.evidence!r}"
+    )
+    # Same wiring as the other --lang tests: 8 rule rows + 1 grammar row.
+    assert len(results) == 9, (
+        f"expected 8 rule rows + 1 grammar row; got "
+        f"{[(x.name, x.status) for x in results]}"
+    )
+    # The grammar row must not leak into FAIL while the MCP is unreachable.
+    fail_names = {x.name for x in results if x.status == "FAIL"}
+    assert "arabic_grammar" not in fail_names, (
+        f"grammar row must not be FAIL when MCP unreachable; FAIL set: {fail_names}"
+    )
+    # Symmetric assertion for --lang en — same wiring, different row name.
+    with patch.object(cc.subprocess, "Popen",
+                      side_effect=FileNotFoundError("npx not found")):
+        results_en = cc.run_all_checks(chapter_path, cc.read_style_guide(None),
+                                        applicability={}, lang="en")
+    r_en = _find(results_en, "english_grammar")
+    assert r_en.status == "WARN", (
+        f"expected WARN for --lang en; got {r_en.status}; evidence={r_en.evidence}"
+    )
+
+
+# Total: 15 tests above (P10-fix1 added the WARN-degradation test). The CLI
+# smoke test (argparse + --json + main()
 # integration) is verified manually in the acceptance criteria
 # (`python check_chapter.py ...`); the 8 rule-level tests above use the
 # same internal functions `main()` calls, so the wiring is exercised

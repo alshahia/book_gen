@@ -11,3 +11,9 @@ dist/
 .DS_Store
 .env.local
 
+# Generated smoke artifacts from prior dispatches (master smoke-test output;
+# narrow, task-prefixed only so real content under share/reports/<real-name>/
+# or share/notes/<real-name>/ is never masked).
+share/reports/T-*/
+share/notes/T-*-smoke/
+
