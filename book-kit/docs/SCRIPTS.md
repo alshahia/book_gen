@@ -640,3 +640,79 @@ missing, the script prints `—` (em-dash).
 key is missing.
 
 **Stdlib-only** (bash + `printf` + `tail`). No new dependencies.
+
+---
+
+## render_mermaid.py (P11)
+
+Pre-PDF figure renderer. Scans `<book>/chapters/*.md` for fenced `mermaid`
+blocks, renders each one to a PNG via `mmdc`, and writes a mirrored copy of
+every chapter under `chapters-rendered/` with each block replaced by an
+`![caption](figures/....png)` image link. **The source chapters are never
+mutated.** Wired into the orchestrator's Phase 6 as a pre-PDF step (see
+`agents_manager/book-gen-orchestrator/SKILL.md`).
+
+**External dependency (required):**
+```sh
+npm install -g @mermaid-js/mermaid-cli
+```
+
+**Usage:**
+```sh
+python render_mermaid.py --book books/<slug>/ [--slug <slug>]
+                         [--figures-dir figures] [--out chapters-rendered]
+                         [--manifest figures/mermaid-manifest.json]
+                         [--chapter ch-NN.md]
+```
+
+**Flags:**
+| Flag | Default | Behavior |
+|---|---|---|
+| `--book` | (required) | Book root; must contain a `chapters/` directory. |
+| `--slug` | book root dir name | Prefix for generated figure filenames. |
+| `--figures-dir` | `figures` | Where `.mmd` sources and `.png` renders land. Resolved under `--book`. |
+| `--out` | `chapters-rendered` | Mirrored chapter directory. Resolved under `--book`. |
+| `--manifest` | `figures/mermaid-manifest.json` | Manifest path. Resolved under `--book`. |
+| `--chapter` | all `*.md` | Render a single chapter file name instead of the whole book. |
+
+**Per-block artifacts:** `figures/<slug>-<ch-NN>-mermaid-<idx>.mmd` (block
+source) and `figures/<slug>-<ch-NN>-mermaid-<idx>.png` (render, produced with
+`-b transparent`).
+
+**Manifest:** a JSON list of `{chapter, index, source_hash, png_path}`, sorted
+by `(chapter, index)`. `source_hash` is the sha256 of the block source, so an
+unchanged book re-renders to a byte-identical manifest.
+
+**Caption resolution (first match wins):**
+1. A `%% caption: <text>` directive on any line inside the mermaid block.
+2. The nearest preceding markdown heading in the chapter.
+3. `Figure <idx>`.
+
+**Path validation (P4 #14 / P6 inheritance):** `--figures-dir`, `--out` and
+`--manifest` are all resolved relative to `--book`. Any value containing a
+`..` component, or any absolute path that does not resolve under the book
+root, is refused with exit 2 before a single byte is written.
+
+**Subprocess contract:** `mmdc` is invoked array-form as
+`["mmdc", "-i", <mmd>, "-o", <png>, "-b", "transparent"]` with `check=True,
+capture_output=True`. Never `shell=True`. A non-zero `mmdc` exit surfaces the
+captured stderr in the error message.
+
+**Missing `mmdc` behavior:** resolved via `shutil.which("mmdc")` at CLI entry.
+A warning always goes to stderr with the install hint. Then:
+- at least one mermaid block found -> exit 3, nothing written;
+- no mermaid blocks found -> empty manifest written, exit 0 (a book with no
+  diagrams must not break the pre-PDF pipeline).
+
+**Malformed input:** an opening ` ```mermaid ` fence with no matching close
+raises a handled error (exit 2). All chapters are parsed before any write, so
+one malformed block leaves the figures and mirror directories untouched rather
+than half-written.
+
+**Exit codes:** 0 = rendered (or nothing to render), 2 = input error (missing
+book root, no `chapters/`, malformed block, path outside book root, `mmdc`
+render failure), 3 = `mmdc` required but not installed.
+
+**Stdlib-only** on the Python side. No new Python dependencies. Forces UTF-8
+stdio at module load before any argparse construction or output (WARN #15 /
+#22 inheritance).

@@ -134,6 +134,23 @@ Boundary reminders for am-coder:
 - do NOT mark a chapter `approved` — that's am-review's call
 - do NOT invent facts not in the bible or research-log
 
+### Pre-PDF figure render (master runs `render_mermaid.py`)
+
+Chapters may embed diagrams as fenced ` ```mermaid ` blocks. Before any PDF build, master renders them to PNGs so the typesetter never sees raw mermaid source:
+
+```sh
+python book-kit/book_workflow/scripts/render_mermaid.py --book books/<slug>
+```
+
+The script writes `figures/<slug>-ch-NN-mermaid-<idx>.png` (via `mmdc -b transparent`), mirrors every chapter into `books/<slug>/chapters-rendered/` with each block swapped for an `![caption](figures/....png)` link, and emits `figures/mermaid-manifest.json` (`{chapter, index, source_hash, png_path}`). **Source chapters under `chapters/` are never mutated** — the PDF step reads `chapters-rendered/` when it exists, otherwise `chapters/`.
+
+This requires mermaid-cli on PATH (`npm install -g @mermaid-js/mermaid-cli`). Handling when it is missing:
+- **Exit 3** (mermaid blocks exist but `mmdc` is absent) — do NOT fail the pipeline silently and do NOT ship a PDF with raw mermaid fences. Surface the install hint to the user and pause the PDF step; the chapters themselves are already approved and unaffected.
+- **Exit 0** with an empty manifest (no mermaid blocks anywhere) — normal for prose books; continue straight to the PDF step.
+- **Exit 2** (malformed block, or a `--figures-dir`/`--out`/`--manifest` path outside the book root) — treat as a chapter defect and route back to am-coder; nothing was written.
+
+Re-runs are idempotent: an unchanged book produces a byte-identical manifest.
+
 ## Phase 7 — Review (dispatch am-review)
 
 ### Pre-review gate artifact (master runs `gate_summary.py` per chapter)
