@@ -224,3 +224,34 @@ The host MCP config (`~/.config/opencode/opencode.json`) carries both
 (gitignored). See `agents_manager/research/SKILL.md` section
 "Multi-source research protocol (P9)" for the agent-side invocation
 contract.
+
+## Book knowledge graph (P18)
+
+The kit ships a SQLite-backed knowledge graph at
+`book-kit/mcp/book-kg/`. The package contains four files:
+
+- `schema.sql` -- 12 tables + 1 FTS5 virtual table (verbatim from
+  plan section P18) plus a `schema_version` table for forward
+  migration.
+- `indexer.py` -- walks `books/<slug>/` once per writing dispatch,
+  extracts chapters, beats, motifs, characters, frozen lines,
+  continuity anchors, and cross-references. Re-runs are idempotent
+  (hash-based, no duplicates).
+- `query.py` -- `trace_path`, `motifs_in_chapter`, `contradicts`,
+  `references`, plus an `fts_search` helper for FTS5 lookups.
+- `server.py` -- FastMCP wrapper that exposes the four primary
+  queries as MCP tools. The DB path is read from the `BOOK_KG_DB`
+  env var (default: `.book-kg.db` in the current directory).
+
+The MCP host wires the server as `<name>book-kg</name>` so any
+agent with the MCP available can call the four query tools without
+boilerplate. The book-gen orchestrator runs the indexer after
+Phase 2 and again after each `am-coder` writing dispatch; the
+reviewer calls the tools in Phase 7 to validate motif persistence,
+frozen-line consistency, and cross-chapter references.
+
+The indexer accepts `chapters/*.md` matching `^ch-\d+\.md$`,
+`bible.md` with `## Continuity anchor` / `## Motifs` /
+`## Characters` sections (bullet or table form), and
+`frozen-lines.json` matching the project schema. FTS5 uses
+`unicode61 remove_diacritics 2` for Arabic-aware search.
