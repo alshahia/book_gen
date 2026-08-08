@@ -5,6 +5,7 @@ Status: DRAFT | CONFIRMED
 ## Presentation
 - Chapter length/rhythm: [short punchy sections vs. long discursive chapters]
 - Structural devices: [subheadings, lists, callouts, recurring chapter-opening/closing conventions]
+- Visual-style samples: see `book-kit/examples/` (10 rendered HTML + PDF pairs) and `book-kit/docs/STYLE_DECISIONS.md` for the "when to use" rule behind each dialogue-density, tashkeel, separator, and closing-hook choice.
 
 ## Voice
 - Reference points from intake: [specific traits to emulate, not wholesale imitation]

@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<title>Separator: blank line</title>
+<style>
+@page { size: A4; margin: 2cm 2.2cm; }
+* { box-sizing: border-box; }
+body {
+    direction: rtl;
+    text-align: right;
+    font-family: 'Cairo', 'Sakkal Majalla', 'Segoe UI', Tahoma, Arial, sans-serif;
+    font-size: 11.5pt;
+    line-height: 1.9;
+    color: #1a1a1a;
+    margin: 0;
+}
+h1 {
+    font-size: 22pt;
+    color: #0b3d66;
+    border-bottom: 3px solid #0b3d66;
+    padding-bottom: 0.3em;
+    margin: 0 0 1.2em 0;
+}
+p { margin: 0.7em 0; }
+.sample-banner {
+    direction: ltr;
+    text-align: left;
+    font-family: 'Segoe UI', Tahoma, Arial, sans-serif;
+    background: #f0f6fb;
+    border-left: 4px solid #2f7fb5;
+    padding: 0.7em 1em;
+    margin: 0 0 1.6em 0;
+    font-size: 9.5pt;
+    color: #333333;
+}
+.sample-banner .sample-id {
+    font-family: 'Cascadia Code', Consolas, 'Courier New', monospace;
+    font-size: 10pt;
+    color: #0b3d66;
+    font-weight: bold;
+    margin: 0 0 0.35em 0;
+}
+.sample-banner p { margin: 0.2em 0; }
+.sep-asterism {
+    text-align: center;
+    font-size: 15pt;
+    color: #2f7fb5;
+    letter-spacing: 0.3em;
+    margin: 1.8em 0;
+}
+.sep-blank { margin: 3.2em 0; }
+.sep-ornament {
+    text-align: center;
+    font-size: 26pt;
+    color: #14507e;
+    margin: 1.4em 0;
+}
+.closing { margin-top: 1.4em; }
+</style>
+</head>
+<body>
+<header class="sample-banner">
+<p class="sample-id">book-kit example: separator-blank</p>
+<p><strong>Style choice:</strong> Scene breaks marked with vertical whitespace only.</p>
+<p><strong>Use when:</strong> Quiet, continuous narration where a printed glyph would feel intrusive. Costs a break when the gap lands at a page boundary.</p>
+<p>Rendered by book-kit/bin/render-examples.sh. See book-kit/docs/STYLE_DECISIONS.md.</p>
+</header>
+<h1>الخبر</h1>
+<p>وصل الخبر إلى الحيّ قبل أن يصل إلى البيت. سمعته أم يوسف من بائع الخضار، وسمعه بائع الخضار من سائق الأجرة، وسمعه السائق من رجل لم يعرفه أصلًا. حين طرقت أم يوسف الباب أخيرًا، كانت الجملة قد تغيّرت أربع مرات في الطريق، ووصلت أقسى مما بدأت.</p>
+<p>فتحت نادية الباب وهي تمسح يديها بطرف ثوبها. نظرت إلى وجه جارتها، ولم تحتج إلى سماع الجملة كاملة. الوجوه تسبق الكلام دائمًا في هذا الحيّ، والناس هنا يتعلمون قراءتها قبل أن يتعلموا القراءة.</p>
+<p>لم تبكِ. جلست على الدرجة الأولى من السلّم، ووضعت يديها على ركبتيها، وسألت سؤالًا واحدًا: «متى؟» فأجابت أم يوسف بأن ذلك كان فجر أمس. أومأت نادية كأن التوقيت يغيّر شيئًا، ثم سكتت طويلًا.</p>
+<p>في الداخل، كان التلفاز ما زال يعمل بصوت منخفض، وبرنامج الطبخ الذي تتابعه كل صباح يشرح كيف تُحفظ الخضار الورقية أطول مدة ممكنة. أطفأته أم يوسف دون أن تسأل، ثم جلست بجانبها على الدرجة، ولم تقل شيئًا آخر. وهذا، في ذلك الصباح تحديدًا، كان أفضل ما يمكن أن يُقال.</p>
+<div class="sep-blank"></div>
+<p>في المستشفى، كان الممر أطول مما تذكّرت. الأرضية لامعة إلى حدّ يجعل المشي عليها يبدو خطأً، والضوء أبيض بلا ظلّ، والأصوات كلها مكتومة كأن أحدهم خفض صوت العالم درجتين.</p>
+<p>الممرضة التي استقبلتها كانت صغيرة السنّ، وتتكلم بلهجة ليست من المدينة. شرحت الإجراءات بصوت متمرّن، وأعطتها ورقة وقلمًا، وأشارت إلى مقعد بلاستيكي أزرق. جلست نادية على المقعد ونظرت إلى الورقة عشر دقائق دون أن تكتب حرفًا واحدًا.</p>
+<p>لم يكن السبب أنها لا تعرف ما تكتب. كانت تعرف اسمه، وتاريخ ميلاده، ورقم بطاقته عن ظهر قلب. لكنها أدركت وهي تمسك القلم أن كتابة الاسم في هذه الخانة تحديدًا تعني شيئًا لا تريد أن تعنيه بعد.</p>
+<p>مرّ رجل يدفع عربة معدنية عليها ملاءات مطوية. صرير العجلات ملأ الممر كله ثم ابتعد. رفعت نادية رأسها وتابعت العربة حتى اختفت عند المنعطف، ثم نظرت إلى الورقة من جديد، وكتبت الاسم أخيرًا بخطّ ثابت لا يشبه خطّها.</p>
+<div class="sep-blank"></div>
+<p>عادت إلى البيت بعد المغرب. كان الباب مواربًا كما تركته، والضوء في المطبخ ما زال مضاءً، والإبريق على النار قد نشف ماؤه كله وبقي يحترق على الحديد.</p>
+<p>أطفأت النار. غسلت الإبريق. وضعته في مكانه على الرفّ الثاني، حيث يوضع دائمًا، ثم وقفت أمام الرفّ دقيقة كاملة تنظر إليه.</p>
+<p>في الصباح، سيأتي الناس. ستفتح الباب، وتقبل العزاء، وتقول الكلمات التي تقال. أما الليلة، فلا أحد في البيت غيرها، والإبريق نظيف، والضوء مضاء، وهذا كل ما تستطيع ترتيبه الآن.</p>
+<p>على الطاولة كان فنجانان: واحد نظيف وواحد لم يُغسل بعد. ترددت أمام الفنجان الثاني ثوانيَ، ثم غسلته أيضًا، وجفّفته، ووضعته مقلوبًا بجانب الأول. لا أحد سيلاحظ هذا التفصيل غدًا، ولا أحد سيسأل عنه بعد غد، وهي فعلته على أيّ حال.</p>
+</body>
+</html>
