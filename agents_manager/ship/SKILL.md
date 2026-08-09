@@ -11,6 +11,10 @@ version: 0.20.0
 
 Before writing code against ANY external module/library/framework/SDK/API, run `chub get <id>` to fetch current docs. Training data may be outdated or hallucinated; chub is canonical. No exceptions. See `agents_manager/SKILL.md` § Context-hub protocol.
 
+## Book-kit tooling reference (v1.2.0+)
+
+When shipping a book-kit-enabled release, also bump `book-kit/VERSION` (current: see file) and append a `## Book-kit changes` block to `agents_manager/CHANGELOG.md` listing the new tools shipped in this release. The canonical book-kit tool list is at `book-kit/docs/TOOLKIT.md` -- cross-reference it in the GitHub Release notes for downstream users.
+
 # Ship Sub-Agent
 
 ## Goal

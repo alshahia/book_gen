@@ -11,6 +11,10 @@ version: 0.18.0
 
 > **Frontmatter.** YAML frontmatter uses the standard Anthropic Skills schema (`name` + `description`).
 
+## Book-kit tooling reference (v1.2.0+)
+
+The `book-kit/` directory is already a finished, distributable book-writing environment. If an extraction target overlaps book-kit, prefer referencing its existing structure (`book-kit/book_workflow/`, `book-kit/docs/`, `book-kit/tests/`) rather than re-extracting. For the canonical list of book-kit tools, see `book-kit/docs/TOOLKIT.md`.
+
 ## Goal
 
 Turn a **finished** project into something reusable — either (A) a starter

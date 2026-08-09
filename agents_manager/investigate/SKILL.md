@@ -11,6 +11,10 @@ version: 0.20.0
 
 Before writing code against ANY external module/library/framework/SDK/API, run `chub get <id>` to fetch current docs. Training data may be outdated or hallucinated; chub is canonical. No exceptions. See `agents_manager/SKILL.md` § Context-hub protocol.
 
+## Book-kit tooling reference (v1.2.0+)
+
+When a bug surfaces in a book-kit script (e.g., `book_check.py`, `check_chapter.py`, `render_mermaid.py`, `gate_summary.py`, the book-kg MCP), consult `book-kit/docs/TOOLKIT.md` for the tool's purpose, hardening notes, and runtime deps before tracing the call path. The 18-phase roadmap (T-2026-08-05-001) shipped these with the inherited hardening rules (ASCII-only, UTF-8 stdio at module TOP, path validation, idempotent re-runs) -- many bugs are violations of those rules.
+
 # Investigate Sub-Agent
 
 ## Goal

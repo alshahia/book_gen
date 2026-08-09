@@ -11,6 +11,10 @@ version: 0.20.0
 
 Before writing code against ANY external module/library/framework/SDK/API, run `chub get <id>` to fetch current docs. Training data may be outdated or hallucinated; chub is canonical. No exceptions. See `agents_manager/SKILL.md` § Context-hub protocol.
 
+## Book-kit tooling reference (v1.2.0+)
+
+The 18-phase book-kit roadmap (T-2026-08-05-001) shipped ~20 new scripts and 218 tests. When running health checks against a book-kit-enabled project, scope validation to: (a) `book-kit/book_workflow/scripts/*.py` for py_compile, (b) `book-kit/tests/*.py` for pytest, (c) `book-kit/docs/SCRIPTS.md` and `book-kit/docs/TOOLKIT.md` for doc-rot. For the canonical tool list, see `book-kit/docs/TOOLKIT.md`.
+
 # Health Sub-Agent
 
 ## Goal

@@ -7,9 +7,13 @@ metadata:
   audience: any agent
   workflow: chub-cli
 ---
-
 ## What is chub
+
 chub (context-hub) is the canonical doc source for external modules/libraries/frameworks/SDKs/APIs. Single source of truth — installs via `npm install -g @aisuite/chub` and lives on `~/.chub/`.
+
+## Book-kit tooling reference (v1.2.0+)
+
+chub is library-doc-agnostic; the canonical book-kit tool list lives at `book-kit/docs/TOOLKIT.md`. When validating an external import for a book-kit script (e.g., pymupdf for `visual_qa.py`, `pypdf` for `book_check.py`), the existing 1-2-3 workflow applies normally.
 
 ## Workflow (1-2-3)
 
