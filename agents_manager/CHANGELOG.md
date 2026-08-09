@@ -2,6 +2,81 @@
 
 All notable changes to the `agents_manager` system. Newest on top.
 
+## v1.2.0 — book-kit roadmap complete + tool awareness (2026-08-08)
+
+**Eighteen-phase book-kit roadmap (T-2026-08-05-001) is closed.** Additive MINOR bump — `book-kit/VERSION` 1.1.0 → 1.2.0. Eighteen new tools shipped, one new MCP, two new templates, three docs indexes. 218/218 tests pass on a fresh run. The 18 phases are listed verbatim in the **Book-kit changes** sub-section at the bottom of this block. Two fix-loops burned: P10 (npm 404 → `LanguageTool` MCP DEFERRED) and P18 (book-kg idempotency → re-index logic rewritten to drop nothing, only upsert). The new `book-kit/docs/TOOLKIT.md` (351 lines) is now the canonical registry; 15 SKILL.md files were updated to point at it instead of duplicating tool lists.
+
+### What's new
+
+1. **Eighteen new book-kit tools / scripts / MCP shipped (P1–P18)** — full list and one-line summary per phase in the **Book-kit changes** sub-section. Headline wins:
+   - `book_check.py` gained JSON-Schema validation (P1) + `cross_ref` (P3) + `continuity` from `bible.md` (P8).
+   - `check_chapter.py` (P2) is the new per-beat prose enforcer; extended with `--lang` (P10) and `--check-imports` (P14).
+   - `md2pdf.py --book` (P12) + `visual_qa.py` (P13) close the PDF-build path; the latter walks pages with PyMuPDF and emits widow/orphan/marker diagnostics.
+   - `book-kg` MCP (P18) — SQLite + FTS5 + FastMCP, with `trace_path` / `motifs_in_chapter` / `contradicts` / `references` query API. Replaces the punted `codebase-memory`-for-books line in v0.22.0.
+   - Multi-source web research (P9): Exa (built-in `websearch`) + Firecrawl MCP + `scripts/duckduckgo_search.py` fallback + `scripts/dedup_results.py` + `scripts/parallel_search.py`. `.env.local` convention adopted.
+2. **`book-kit/docs/TOOLKIT.md` (NEW, 351 lines)** — single source of truth for every script and template the kit ships. Pipeline map (which tool runs in which book-gen phase) + tool catalog sorted by phase + canonical docstring/SCRIPTS.md pointer. Agents must point to this file rather than duplicate tool lists.
+3. **15 SKILL.md files updated to reference `book-kit/docs/TOOLKIT.md`** — splits into two commits, but ships together:
+   - `478f104` — 9 files (`book-gen-orchestrator`, `book-writer`, `book-reviewer`, `am-coder`, `am-review`, `am-research`, `am-planning`, `am-design`, `master`): `+461 / -3`.
+   - `072ba2e` — 6 files (`am-assets`, `am-health`, `am-investigate`, `am-ship`, `chub-validate`, `extract`): `+25 / -1`. Also bumps the `Book-kit tooling reference` section in `agents_manager/ship/SKILL.md` so future book-kit releases auto-append a `## Book-kit changes` block to this CHANGELOG.
+4. **`book-kit/VERSION` bumped 1.1.0 → 1.2.0** — additive MINOR. The tag-push triggers a controller-level release of book-kit artifacts (not a controller release); the controller's `VERSION` is unchanged.
+5. **218/218 tests pass** — `py -m pytest book-kit/tests/ --no-header -p no:cacheprovider -q` exits 0 with `218 passed in 16.87s` on a fresh run (after the 18 phases landed). Frontmatter validation across 15 controller SKILL.md files: all OK.
+6. **Two fix-loops burned (recorded in the WARNs register, all auto-accepted by master)**:
+   - **P10 fix-loop 1** — `LanguageTool` MCP install hit a 404 on the npm package name → MCP entry **DEFERRED**; `check_chapter.py --lang` degrades to WARN (not FAIL) when the backend is unreachable, so missing optional dep never turns a clean chapter into a gate failure.
+   - **P18 fix-loop 1** — `book-kg` indexer was not idempotent on second run (re-inserting rows on re-index). Re-index logic rewritten: drops nothing, only inserts missing rows + updates `hash` columns. Verified by `test_book_kg.py` fixture.
+7. **`.gitignore` extended** — `book-kit/exports/`, `exports/`, `reports/` are now ignored. These are runtime outputs from P2 (`check_chapter.py`), P12 (`md2pdf.py --book`), and P13 (`visual_qa.py`); they were the four untracked items the working tree picked up during the roadmap build.
+
+### What did NOT change
+
+- Controller `VERSION` is unchanged — this is a book-kit release, not a controller release. The next controller release will pick up the new `ship/SKILL.md` `Book-kit tooling reference` paragraph (072ba2e) as part of its own changelog.
+- Agent rosters: no new agents added. The book-kit still ships the 5 specialists + `master` (6 total per `book-kit/CLAUDE.md`); the controller still ships 9.
+- No new external dependencies forced on downstream users. Optional: `pymupdf` (P13), `uv` (P14), `languagetool` MCP (P10, deferred), `mermaid-cli` (P11). Each script degrades gracefully when its optional dep is missing.
+- No breaking CLI changes. All new flags are additive (`--lang`, `--check-imports`, `--book`).
+
+### Book-kit changes
+
+Eighteen new tools / scripts / MCP shipped in `book-kit/`, one line each:
+
+- **P1** — `book_check.py` JSON-Schema validation for `frozen-lines.json` + `.translate-progress.json` (skip-with-info when `jsonschema` missing, fail with field name on schema error).
+- **P2** — `book-kit/book_workflow/scripts/check_chapter.py` — per-beat prose enforcer: word count per beat, banned-pattern scan, quote-pair balance, dialogue-own-line, closing-hook length, countdown occurrences, Arabic-punctuation, sentence-length median. 8 fixtures + happy path + no-EOM edge.
+- **P3** — `book-kit/book_workflow/scripts/cross_ref.py` — chapter cross-reference resolver (EN `[ch-0X]` / `(ch-NN.md#anchor)` / Arabic `الفصل` patterns); wired into `book_check.py` as a new `cross_ref` check.
+- **P4** — `book-kit/book_workflow/templates/ledger.md` `## Gate checklist` table + `scripts/render_ledger_check.py` autogen helper. Orchestrator Phase 6 calls it.
+- **P5** — `book-kit/book_workflow/templates/bible.md` `## Rule applicability` table; `check_chapter.py` parses it to skip inapplicable rules per chapter.
+- **P6** — `book-kit/book_workflow/scripts/gate_summary.py` — emits `share/reports/02_gate_ch-NN_<task>.md` with `APPROVED` / `FIX-LOOP-N` / `REJECTED` verdict (3 fixtures).
+- **P7** — `book-kit/book_workflow/scripts/index_reports.py` — scans `share/reports/`, emits `INDEX.md` grouped by phase prefix (1 fixture, 5 dummy reports).
+- **P8** — `book_check.py` `continuity` check — parses `bible.md` `## Continuity anchor` sections, walks chapters for keyword/quote adjacency, emits `Coin arc: ch-01 → ch-03 → ch-05 — PASS|FAIL` rows. `coin_arc` detector from `style-guide.md` `Tracked motifs:`.
+- **P9** — multi-source web research: `scripts/duckduckgo_search.py` (DuckDuckGo HTML wrapper), `scripts/parallel_search.py` (Exa + Firecrawl parallel), `scripts/dedup_results.py` (URL canonicalize + dedup), `bin/check-search-keys.sh` (`.env.local` key-status). Firecrawl MCP wired in `~/.config/opencode/opencode.json`; `.env.local` convention adopted. `agents_manager/research/SKILL.md` updated with the new protocol.
+- **P10** — `check_chapter.py --lang ar|en` — runs `languagetool` MCP grammar pass. **DEFERRED (npm 404):** the LanguageTool MCP server package is not installable today; the row degrades to WARN. Documented in `book-kit/docs/SCRIPTS.md` "DEFERRED" section. Re-enable when the upstream package is published.
+- **P11** — `book-kit/book_workflow/scripts/render_mermaid.py` — `mmdc` wrapper, writes PNGs to `figures/<slug>-ch-NN-mermaid-<idx>.png`, emits `figures/mermaid-manifest.json`. Mirror to `chapters-rendered/`; never mutates source. 1 fixture, 2 mermaid blocks → 2 PNGs.
+- **P12** — `md2pdf.py --book` — assemble cover + preface + chapters + back-matter; embed `@page { @bottom-right { counter(page) } }`; metadata via Chrome's printToPDF (`--title` / `--author` / `--isbn` / `--build-date`); paper size + fonts from `style-guide.md` frontmatter.
+- **P13** — `book-kit/book_workflow/scripts/visual_qa.py` — PyMuPDF walk, per-page PNGs (`figures/<slug>-page-NN.png`), widow/orphan detection via `page.get_text("dict")`, marker-string search. Emits `figures/visual-qa.md` page table.
+- **P14** — `book-kit/book_workflow/scripts/pin_deps.py` (`uv pip compile` over `chapters/code/*/`); `check_chapter.py --check-imports` walks Python listings for `from X import Y` and verifies `X` is pinned in the chapter's `uv.lock`. Missing `uv.lock` degrades to PASS-with-skip.
+- **P15** — `book-kit/docs/BEAT_GIT.md` + `bin/check-book-repo.sh` — beat-boundary git snapshot convention (`git tag scope-book/ch-NN-beat-K`); orchestrator Phase 6 emits the tag only if the book dir is a git repo.
+- **P16** — `book-kit/examples/` — 9 rendered visual-style samples (dialogue-dense vs sparse; tashkeel full/minimal/none; separator asterism/blank/ornament; closing-hook long vs short). Each ships `.html` + `.pdf`. New `book-kit/docs/STYLE_DECISIONS.md` maps samples to "when to use" rules.
+- **P17** — `book-gen-orchestrator/SKILL.md` Phase 7 review-subagent budgeted runner: chapters > 2000 words split into ≤800-token review chunks at H3 boundaries; fallback protocol retries with smaller chunks (1500 → 1000 → 600) on truncated output. `gate_summary.py` now logs `book-reviewer` invocation count.
+- **P18** — `book-kit/mcp/book-kg/` — SQLite (FTS5) knowledge-graph MCP. FastMCP server; `indexer.py` walks `books/<slug>/` for chapters / beats / frozen-lines / motifs / characters / bible-anchors / outline-deps; `query.py` exposes `trace_path` / `motifs_in_chapter` / `contradicts` / `references`. **Fix-loop 1**: re-index is now idempotent (upsert by hash, never drop). 1 fixture, 3-chapter book, 7/7 tests + full suite 218/218.
+
+### Carry-forward / open items
+
+- **30+ LOW WARNs in `share/notes/04_warns_register_T-2026-08-05-001.md`** — all auto-accepted during per-phase review (P10 masking label off-by-one, P10 exit-code docstring, P10 missing en-dash example, P11 non-incremental rerun, P11 no-prune, P11 relative-link, P14 file-count deviation (6 vs 4), P16 Chrome-is-installed + count typo, P18 idem-potency, etc.). None block ship. Punted to a future cleanup pass.
+- **P10 — LanguageTool MCP** — the npm package is currently 404. When upstream publishes, re-enable the MCP and flip the `check_chapter.py --lang` row from WARN-degrade back to FAIL-on-grammar-error.
+- **P4.1 / P18.1 cleanup candidates** — `book-kit/exports/` and `book-kit/CH-DEP-STATUS.md` siblings could be promoted from `.gitignore` to canonical examples; held until a third project ships a translation-mode book to validate the pattern.
+- **`agents_manager/book_check.py` (88 lines, base)** still does not include the kit's translation-mode checks (source-ratio, missing-H2, code-block-freeze, untranslated-English, glossary drift). Native projects get the base checks; translation-mode projects would still need to install the kit. Held since promoting would change behavior for any existing native project. (Carried from v0.22.0 — open since 2026-08-05.)
+
+### How to verify
+
+1. `py -m pytest book-kit/tests/ --no-header -p no:cacheprovider -q` — 218 passed in ~17s.
+2. `py scripts/validate-frontmatter.py <15 SKILL.md files>` — all OK.
+3. `cat book-kit/VERSION` → `1.2.0` (LF, no CRLF).
+4. `git log --oneline -2` → `072ba2e agents_manager: add TOOLKIT.md pointer to 6 orthogonal skills` + `478f104 book-kit: register 18 new tools in TOOLKIT.md + update agent awareness`.
+5. `git tag -l 'v1.*'` → `v1.0.0` / `v1.1.0` / `v1.2.0`.
+
+### Skipped per ponytail
+
+- **Promoting the kit's `book_check.py` (294 lines, has translation checks) into the controller** — would change behavior for any existing native project on the controller. Held since v0.22.0. Punt to a follow-up controller release that opts-in projects.
+- **Auto-running `gate_summary.py` from a CI step** — gate artifacts are human-readable reports; CI doesn't have a need. Add when a downstream user requests a `--ci` flag.
+- **Promoting `book-kg` MCP to the controller** — same as above. The MCP is kit-scoped; downstream projects that want the knowledge graph install the kit.
+- **A controller-level release of the new `ship/SKILL.md` `Book-kit tooling reference` paragraph** — ships in the next controller release, not this one. The paragraph tells future `am-ship` invocations to bump `book-kit/VERSION` + append a `## Book-kit changes` block; that protocol is only invoked from book-kit releases.
+
 ## v0.22.0 — book-gen translation-mode wired into orchestrator (2026-08-05)
 
 **Translation-mode is now a first-class book-gen path at the controller level.** Resolves the v0.2.0 open item "Master dispatch loop for the two-pass `book-reviewer` — shipped as a skill, not yet wired into orchestrator" by promoting the three missing artifacts from `book-kit/` into the controller and wiring Phase 7 with explicit Branch A / Branch B dispatch-selection. Validated by `scripts/test-dispatch-selection.py` (4 scenarios + book_check no-false-positive) against the real `books/ai-agents-with-python/` project.

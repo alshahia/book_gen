@@ -17,3 +17,9 @@ dist/
 share/reports/T-*/
 share/notes/T-*-smoke/
 
+# Build artifacts from book-kit P12 (md2pdf --book) + P13 (visual_qa) + P2 (check_chapter)
+# These are runtime outputs of the new tools in T-2026-08-05-001; not source.
+book-kit/exports/
+exports/
+reports/
+
