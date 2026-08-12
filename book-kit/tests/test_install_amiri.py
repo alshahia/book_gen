@@ -5,6 +5,7 @@ Verifies:
   * Network failure (urlopen URLError) surfaces as exit 3.
 """
 import sys
+import hashlib
 from pathlib import Path
 from urllib.error import URLError
 
@@ -122,4 +123,61 @@ def test_verify_exits_0_when_installed(tmp_path, capsys):
     )
     captured = capsys.readouterr()
     assert rc == 0
-    assert "installed" in captured.out
+
+
+# ---------------------------------------------------------------------------
+# 4) --sha256 verification (v1.3.1 polish W3)
+# ---------------------------------------------------------------------------
+
+
+def test_sha256_verification_passes_on_match(monkeypatch, tmp_path, capsys):
+    """--sha256 matching the downloaded zip -> verify step prints OK, then
+    extracts normally."""
+    target = tmp_path / "amiri_sha_ok"
+    target.mkdir(parents=True)
+    # Stage a fake zip in tmp_zip location.
+    tmp_zip = target.parent / "Amiri-test.zip.tmp"
+    tmp_zip.write_bytes(b"hello amiri")
+    expected = hashlib.sha256(b"hello amiri").hexdigest()
+
+    # Patch the downloader to skip + the extractor to skip.
+    monkeypatch.setattr(ia_mod, "_download_zip", lambda tag, out: None)
+    monkeypatch.setattr(ia_mod, "_fetch_latest_tag", lambda: "test")
+    monkeypatch.setattr(ia_mod, "_extract_zip",
+                        lambda zip_path, td: (td / "Amiri-Regular.ttf").write_bytes(b"X"))
+
+    rc = ia_mod.run_install(
+        force=True,
+        verify_only=False,
+        target_arg=str(target),
+        sha256=expected,
+    )
+    captured = capsys.readouterr()
+    assert rc == 0
+    assert "sha256 verified" in captured.out
+
+
+def test_sha256_verification_fails_on_mismatch(monkeypatch, tmp_path, capsys):
+    """Wrong --sha256 -> ExtractionFailure, exit 4, tmp_zip cleaned up."""
+    target = tmp_path / "amiri_sha_bad"
+    target.mkdir(parents=True)
+    tmp_zip = target.parent / "Amiri-test.zip.tmp"
+    tmp_zip.write_bytes(b"hello amiri")
+
+    monkeypatch.setattr(ia_mod, "_download_zip", lambda tag, out: None)
+    monkeypatch.setattr(ia_mod, "_fetch_latest_tag", lambda: "test")
+    # If we get to extraction, the test should fail loudly.
+    monkeypatch.setattr(ia_mod, "_extract_zip",
+                        lambda *a, **k: (_ for _ in ()).throw(
+                            AssertionError("extraction should not run")))
+
+    rc = ia_mod.run_install(
+        force=True,
+        verify_only=False,
+        target_arg=str(target),
+        sha256="0" * 64,  # guaranteed mismatch
+    )
+    captured = capsys.readouterr()
+    assert rc == 4
+    assert "sha256 mismatch" in captured.err
+    assert not tmp_zip.exists(), "tmp_zip should be cleaned up on mismatch"

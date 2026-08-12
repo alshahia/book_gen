@@ -175,10 +175,21 @@ def run_self_check(locale, cache_dir, device):
 
     from faster_whisper import WhisperModel  # noqa: F401  (after dep check)
 
-    cache_arg = str(cache_dir) if cache_dir else None
+    # Default cache: repo-local .cache/faster-whisper to avoid leaking into
+    # the user's HF_HOME (~/.cache/huggingface). Override with --cache-dir.
+    if cache_dir:
+        cache_arg = str(cache_dir)
+    else:
+        repo_cache = Path(__file__).resolve().parents[3] / ".cache" / "faster-whisper"
+        cache_arg = str(repo_cache)
+        print(
+            "check_whisper_deps: --cache-dir not set; defaulting to repo-local %s"
+            % cache_arg,
+            file=sys.stderr,
+        )
     print(
         "check_whisper_deps: loading model=%r device=%r cache=%s"
-        % (model_id, device, cache_arg or "<HF_HOME default>")
+        % (model_id, device, cache_arg)
     )
     try:
         model = WhisperModel(
@@ -281,7 +292,7 @@ def _build_parser():
     )
     p.add_argument(
         "--cache-dir", default=None,
-        help="Override the model download dir (default: HF_HOME).",
+        help="Override the model download dir (default: <repo>/.cache/faster-whisper).",
     )
     p.add_argument(
         "--device", default="cuda", choices=["cuda", "cpu"],

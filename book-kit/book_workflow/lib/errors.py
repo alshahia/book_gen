@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import sys
 import io
+from types import MappingProxyType
 
 for _stream in (sys.stdout, sys.stderr):
     try:
@@ -43,9 +44,14 @@ for _stream in (sys.stdout, sys.stderr):
 # ``MediaPipelineError`` of their own rather than silently producing a
 # broken message -- "fail loud at the configuration step" beats "wrong
 # hint at the user step".
+#
+# Both HINTS and DEFAULT_EXIT_CODES are exposed as ``MappingProxyType``
+# so importers can read but not mutate. The phase 9 review flagged a
+# mutable-module-dict risk (Phase 2b WARN-1); the frozen view keeps
+# backward compat with code that does ``HINTS[kind]`` lookups.
 # ---------------------------------------------------------------------------
 
-HINTS: dict = {
+_HINTS_MUTABLE: dict = {
     "missing_amiri_font": (
         "Amiri font not found at {path}; install via "
         "book-kit/book_workflow/scripts/install_amiri.py or download from "
@@ -80,12 +86,13 @@ HINTS: dict = {
         "tts.<locale> with provider/voice/grade"
     ),
 }
+HINTS: MappingProxyType = MappingProxyType(_HINTS_MUTABLE)
 
 
 # Default exit code per error_kind. Centralised so the CLIs and the
 # tests cannot drift apart. Keys absent from this dict get exit_code=2
 # (input error) as a conservative default.
-DEFAULT_EXIT_CODES: dict = {
+_DEFAULT_EXIT_CODES_MUTABLE: dict = {
     "missing_amiri_font": 3,    # missing dep
     "voice_unavailable": 4,     # internal/runtime (provider said no)
     "schema_invalid": 2,        # input error
@@ -93,6 +100,7 @@ DEFAULT_EXIT_CODES: dict = {
     "comfyui_not_running": 3,   # missing dep (server not up)
     "unsupported_locale": 2,    # input error
 }
+DEFAULT_EXIT_CODES: MappingProxyType = MappingProxyType(_DEFAULT_EXIT_CODES_MUTABLE)
 
 
 # ---------------------------------------------------------------------------

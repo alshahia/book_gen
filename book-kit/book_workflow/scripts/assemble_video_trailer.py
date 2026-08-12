@@ -105,8 +105,14 @@ TARGET_W = 1920
 TARGET_H = 1080
 
 # Default ffmpeg video / audio codec + bitrate knobs (per dispatch spec).
-VCODEC = "libx264"
-VPRESET = "fast"
+VCODEC_DEFAULT = "libx264"
+VPRESET_DEFAULT = "fast"
+SCALE_MULT_DEFAULT = 4
+# Module-level aliases for code paths that still read the constant directly
+# (e.g. empty-manifest fallback). Tests + production paths thread the
+# CLI-resolved values through.
+VCODEC = VCODEC_DEFAULT
+VPRESET = VPRESET_DEFAULT
 VCRF = 23
 ACODEC = "aac"
 ABITRATE = "192k"
@@ -253,7 +259,8 @@ def _probe_duration_seconds(audio_path):
 # ---------------------------------------------------------------------------
 
 
-def _build_filter_arg(audio_dur, burn_subs, subs_path, bgm_path):
+def _build_filter_arg(audio_dur, burn_subs, subs_path, bgm_path,
+                     scale_mult=SCALE_MULT_DEFAULT):
     """Build the -filter_complex argument for one clip's render.
 
     Shape (mirrors assemble_video_horizontal.py):
@@ -267,6 +274,7 @@ def _build_filter_arg(audio_dur, burn_subs, subs_path, bgm_path):
     """
     chain = ffmpeg_zoompan.supersample_zoompan_filterchain(
         target_w=TARGET_W, target_h=TARGET_H, dur_s=audio_dur,
+        scale_mult=scale_mult,
     )
     parts = list(chain)
     if burn_subs and subs_path is not None:
@@ -282,7 +290,8 @@ def _build_filter_arg(audio_dur, burn_subs, subs_path, bgm_path):
 
 
 def _build_ffmpeg_argv(cover_path, audio_path, audio_offset, audio_dur,
-                       bgm_path, filter_arg, out_path):
+                       bgm_path, filter_arg, out_path,
+                       vcodec=VCODEC_DEFAULT, vpreset=VPRESET_DEFAULT):
     """Build the ffmpeg argv for a single-clip render.
 
     Per dispatch spec:
@@ -322,7 +331,7 @@ def _build_ffmpeg_argv(cover_path, audio_path, audio_offset, audio_dur,
     if bgm_path is not None:
         cmd.extend(["-map", "2:a?"])
     cmd.extend([
-        "-c:v", VCODEC, "-preset", VPRESET, "-crf", str(VCRF),
+        "-c:v", vcodec, "-preset", vpreset, "-crf", str(VCRF),
         "-c:a", ACODEC, "-b:a", ABITRATE,
         "-shortest",
         str(out_path),
@@ -528,7 +537,9 @@ def _fmt_ass_time(seconds):
 
 
 def _render_clip(book_dir, clip, audio_offset, audio_dur, cover_path,
-                 out_path, bgm_path=None, burn_subs=False):
+                 out_path, bgm_path=None, burn_subs=False,
+                 scale_mult=SCALE_MULT_DEFAULT, vcodec=VCODEC_DEFAULT,
+                 vpreset=VPRESET_DEFAULT):
     """Render a single clip's MP4. Returns a manifest-entry dict.
 
     Honors the cover fallback ladder via `_resolve_cover`. Validates
@@ -552,10 +563,12 @@ def _render_clip(book_dir, clip, audio_offset, audio_dur, cover_path,
     try:
         filter_arg = _build_filter_arg(
             audio_dur, burn_subs, subs_path, bgm_path,
+            scale_mult=scale_mult,
         )
         argv = _build_ffmpeg_argv(
             cover_path, audio_path, audio_offset, audio_dur,
             bgm_path, filter_arg, out_path,
+            vcodec=vcodec, vpreset=vpreset,
         )
         out_path.parent.mkdir(parents=True, exist_ok=True)
         _run_ffmpeg(argv)
@@ -658,7 +671,9 @@ def _write_manifest(book_dir, trailer_entry):
 
 
 def run_trailer(book_arg, out_arg, cover_arg, locale,
-                bgm_arg=None, burn_subs=False):
+                bgm_arg=None, burn_subs=False,
+                scale_mult=SCALE_MULT_DEFAULT, vcodec=VCODEC_DEFAULT,
+                vpreset=VPRESET_DEFAULT):
     """Run the trailer assembler. Returns the exit code.
 
     Flags:
@@ -760,6 +775,9 @@ def run_trailer(book_arg, out_arg, cover_arg, locale,
                     cover_path, clip_out,
                     bgm_path=bgm_path,
                     burn_subs=burn_subs,
+                    scale_mult=scale_mult,
+                    vcodec=vcodec,
+                    vpreset=vpreset,
                 )
                 entries.append(entry)
                 clip_mp4s.append(clip_out)
@@ -778,7 +796,7 @@ def run_trailer(book_arg, out_arg, cover_arg, locale,
         total_dur = sum(e["duration_s"] for e in entries)
         trailer_entry = {
             "clips": entries,
-            "codec": VCODEC,
+        "codec": vcodec,
             "width": TARGET_W,
             "height": TARGET_H,
             "duration_s_total": round(total_dur, 3),
@@ -841,6 +859,16 @@ def _build_parser():
     p.add_argument("--burn-subs", action="store_true",
                    help="Burn each clip's chunk text into the video as an "
                         "ASS subtitle overlay (recommended for trailers).")
+    p.add_argument("--scale-mult", type=int, default=SCALE_MULT_DEFAULT,
+                   help="Supersample multiplier for zoompan (default %d; "
+                        "2 = ~2x faster, slight quality loss; 1 = native "
+                        "1920x1080, fastest)." % SCALE_MULT_DEFAULT)
+    p.add_argument("--vcodec", default=VCODEC_DEFAULT,
+                   help="ffmpeg video codec (default %s; try h264_nvenc "
+                        "on Nvidia GPUs for ~5-10x speedup)." % VCODEC_DEFAULT)
+    p.add_argument("--vpreset", default=VPRESET_DEFAULT,
+                   help="ffmpeg -preset value (default %s; veryfast = "
+                        "faster, larger file)." % VPRESET_DEFAULT)
     return p
 
 
@@ -854,6 +882,9 @@ def main(argv=None):
         locale=args.locale,
         bgm_arg=args.bgm,
         burn_subs=args.burn_subs,
+        scale_mult=args.scale_mult,
+        vcodec=args.vcodec,
+        vpreset=args.vpreset,
     )
 
 

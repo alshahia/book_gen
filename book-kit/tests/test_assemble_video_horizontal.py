@@ -106,8 +106,45 @@ def test_t1_help_lists_all_flags():
         "--bgm",
         "--burn-subs",
         "--subs",
+        "--scale-mult",  # v1.3.1 polish: F5 escape-hatch
+        "--vcodec",      # v1.3.1 polish: F5 escape-hatch
+        "--vpreset",     # v1.3.1 polish: F5 escape-hatch
     ):
         assert flag in result.stdout, f"flag {flag} absent from --help output"
+
+
+def test_t1b_escape_hatch_flags_propagate_into_argv(tmp_path):
+    """--scale-mult, --vcodec, --vpreset thread through to ffmpeg argv."""
+    # Build a minimal book + audio stub
+    book = tmp_path / "book"
+    (book / "chapters").mkdir(parents=True)
+    (book / "chapters" / "ch-01.md").write_text("hello", encoding="utf-8")
+    audio = tmp_path / "audio.mp3"
+    audio.write_bytes(b"\x00" * 16)
+    cover = tmp_path / "cover.png"
+    # 1x1 PNG
+    import base64
+    cover.write_bytes(base64.b64decode(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII="
+    ))
+    out = tmp_path / "out.mp4"
+
+    # Use scale_mult=1, vcodec=h264_nvenc, vpreset=veryfast. We expect
+    # _build_ffmpeg_argv to receive each one -- verify via a direct
+    # helper call rather than running ffmpeg.
+    from assemble_video_horizontal import _build_ffmpeg_argv, _build_filter_arg
+    fa = _build_filter_arg(
+        audio_dur=10.0, burn_subs=False, subs_path=None, bgm_path=None,
+        scale_mult=1,
+    )
+    argv = _build_ffmpeg_argv(
+        cover, audio, None, fa, out,
+        vcodec="h264_nvenc", vpreset="veryfast",
+    )
+    # scale_mult=1 -> filter chain literal "scale=2000:-1" (not 8000)
+    assert "scale=2000:-1" in fa, "scale_mult=1 must produce 2000px scale"
+    assert "h264_nvenc" in argv, "vcodec must propagate to argv"
+    assert "veryfast" in argv, "vpreset must propagate to argv"
 
 
 # ---------------------------------------------------------------------------

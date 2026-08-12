@@ -43,6 +43,7 @@ for _stream in (sys.stdout, sys.stderr):
 # ---------------------------------------------------------------------------
 
 import argparse
+import hashlib
 import json
 import os
 import shutil
@@ -162,6 +163,27 @@ def _download_zip(tag, out_path):
         raise NetworkFailure("cannot download %s: %s" % (url, exc))
 
 
+def _sha256_file(path):
+    """Compute SHA256 of a file by streaming in 64KB chunks."""
+    h = hashlib.sha256()
+    with open(path, "rb") as fh:
+        for chunk in iter(lambda: fh.read(65536), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def _verify_sha256(zip_path, expected_hex):
+    """Compare the zip's SHA256 to expected_hex (case-insensitive). Raise
+    ExtractionFailure on mismatch.
+    """
+    actual = _sha256_file(zip_path)
+    if actual.lower() != expected_hex.lower():
+        raise ExtractionFailure(
+            "sha256 mismatch: expected %s, got %s"
+            % (expected_hex.lower(), actual)
+        )
+
+
 def _extract_zip(zip_path, target_dir):
     target_dir = Path(target_dir)
     try:
@@ -188,7 +210,7 @@ def _extract_zip(zip_path, target_dir):
 # ---------------------------------------------------------------------------
 
 
-def run_install(force, verify_only, target_arg):
+def run_install(force, verify_only, target_arg, sha256=None):
     target_dir = (
         Path(target_arg).resolve() if target_arg else _default_target_dir()
     )
@@ -232,6 +254,22 @@ def run_install(force, verify_only, target_arg):
             pass
         return 3
 
+    # Optional SHA256 verification (v1.3.1 polish: W3).
+    # Amiri releases do not currently ship a SHA256SUMS sidecar; this
+    # flag lets CI / paranoid users pin a known-good hash. Without the
+    # flag we proceed without verification (matches prior behaviour).
+    if sha256:
+        try:
+            _verify_sha256(tmp_zip, sha256)
+            print("install_amiri: sha256 verified (%s)" % sha256[:12])
+        except ExtractionFailure as exc:
+            print("install_amiri: %s" % exc, file=sys.stderr)
+            try:
+                tmp_zip.unlink()
+            except OSError:
+                pass
+            return 4
+
     try:
         _extract_zip(tmp_zip, target_dir)
     except ExtractionFailure as exc:
@@ -267,6 +305,11 @@ def _build_parser():
                    help="Re-download even if Amiri is already installed.")
     p.add_argument("--target-dir", default=None,
                    help="Override install dir. Default: OS user font dir.")
+    p.add_argument("--sha256", default=None,
+                   help="Optional SHA256 hex digest to verify the downloaded "
+                        "zip before extraction. Amiri releases do not ship a "
+                        "SHA256SUMS sidecar; this flag lets CI pin a known-good "
+                        "hash. Default: no verification.")
     return p
 
 
@@ -277,6 +320,7 @@ def main(argv=None):
         force=args.force,
         verify_only=args.verify,
         target_arg=args.target_dir,
+        sha256=args.sha256,
     )
 
 

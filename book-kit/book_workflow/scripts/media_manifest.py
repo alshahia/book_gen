@@ -43,7 +43,7 @@ JSON SCHEMA
     because the controller's chub-gate rule says "embed or it drifts".
 
 JS-DEPENDENCY
-    `jsonschema` (BSD, installed in `E:\book_gen\.venv` at v4.26.0) is
+    `jsonschema` (BSD, installed in `E:\\book_gen\\.venv` at v4.26.0) is
     used when present. When missing, the script degrades to a pure-stdlib
     schema check that covers the canonical required-field + type
     assertions. The fallback is documented in the project TRAC register
