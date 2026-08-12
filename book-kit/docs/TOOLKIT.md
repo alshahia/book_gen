@@ -40,6 +40,19 @@ Phase 7 (review)        - gate_summary.py     (P6 + P17; per-chapter gate artifa
 Phase 8 (post-pipeline) - md2pdf.py --book    (P12; PDF build)
                          - visual_qa.py        (P13; post-PDF page diagnostics)
                          - index_reports.py    (P7; share/reports/INDEX.md)
+Phase 9 (book2media)    - media_manifest.py    (Phase 1; validator + generator)
+                         - voices.py           (Phase 2a; TTS voice registry, per-locale)
+                         - media_tts.py        (Phase 2b; H2-driven chunk + synthesize)
+                         - check_whisper_deps.py (Phase 3; faster-whisper deps)
+                         - transcribe_chapter.py (Phase 3; faster-whisper ASR)
+                         - align_srt.py        (Phase 3; difflib alignment + normalize_arabic)
+                         - srt_to_ass.py       (Phase 3; pysubs2 Amiri RTL)
+                         - install_amiri.py    (Phase 3; font install)
+                         - assemble_audiobook.py (Phase 4a; M4B two-pass loudnorm)
+                         - ffmpeg_zoompan.py   (Phase 4b; shared Ken Burns lib)
+                         - assemble_video_horizontal.py (Phase 4b; Mode-1 1920x1080)
+                         - assemble_video_trailer.py (Phase 4b; 60-90s teaser)
+                         - assemble_reel.py    (Phase 4b; 3-platform 1080x1920)
 Translation-mode only   - build_source_map.py (translation intake)
                          - split_source.py     (chunked-write protocol)
                          - fix_source_urls.py  (URL cleanup before source-map)
@@ -315,6 +328,332 @@ Translation-mode only   - build_source_map.py (translation intake)
 **Env:** `BOOK_KG_DB` (default: `<book>/.book-kg.db`).
 
 **See also:** `book-kit/docs/ARCHITECTURE.md` -Book knowledge graph (P18)- section.
+
+---
+
+### Media manifest
+
+#### `media_manifest.py` - media-locale-manifest validator + generator (Phase 9)
+
+**Path:** `book-kit/book_workflow/scripts/media_manifest.py`
+
+**Purpose:** Validates and generates `books/<slug>/media-locale-manifest.json` (Phase 9 of the book-gen pipeline). The manifest is the per-book registry of media products (audiobook M4B, video-horizontal-m1, video-vertical-trailer, video-vertical-reel) per locale, with per-product `tts_provider`, `voice`, `skip`, `translation_required`, and `cover_image_fallback_ladder` fields. The script enforces the three-tier provider resolution rule (per-book manifest wins, `providers.yaml` next, built-in defaults last).
+
+**Invocation shape (canonical):**
+
+```
+py -3 "<repo-root>/book-kit/book_workflow/scripts/media_manifest.py" validate <manifest-path>
+py -3 "<repo-root>/book-kit/book_workflow/scripts/media_manifest.py" generate --book <slug-dir>
+```
+
+**Why direct-file invocation, not module form:** `book-kit/` does not ship `__init__.py`, so the Python `book_workflow.scripts.media_manifest` import path does not work. The script runs standalone via the direct-file path above. This is the same pattern as every other book-kit script (see `book_check.py`, `check_chapter.py`, etc.).
+
+**Subcommands:**
+
+- `validate <manifest-path>` -- schema-checks the manifest against the JSON Schema embedded in `book-kit/book_workflow/scripts/media_manifest.py` at L96-L145 (no standalone `.json` file). Exits 0 on success. On schema error, emits a JSON-path line (e.g. `products.0.voice: <message>`) and exits 2.
+- `generate --book <slug-dir> --providers providers.yaml --out media-locale-manifest.json [--source-locale en]` -- generates a stub manifest from the book's `chapters/`, the global `providers.yaml`, and the optional `--source-locale` default. Use this to bootstrap a manifest at Phase 1 dispatch; the user fills in per-product overrides afterwards.
+
+**Exit codes:**
+
+| Code | Meaning |
+|---|---|
+| 0 | success (validate or generate) |
+| 2 | input error (schema/field error, file not found, path escapes book root) |
+| 3 | missing dependency (`jsonschema` package absent) |
+| 4 | providers.yaml malformed |
+
+**See also:** `agents_manager/book2media-orchestrator/SKILL.md` Phase 1 (media-manifest lane), `agents_manager/assets/SKILL.md` Media-manifest lane section, `book-kit/docs/SCRIPTS.md` `## media_manifest.py` section.
+
+---
+
+### TTS (text-to-speech, Phase 2a + 2b)
+
+#### `voices.py` - per-locale TTS voice registry (Phase 2a)
+
+**Path:** `book-kit/book_workflow/scripts/voices.py`
+
+**Purpose:** Three-tier voice resolution (per-book manifest > global `providers.yaml` > built-in registry). Resolves a TTS voice for a given `(book, locale, tts_provider)` triple, lists available voices for a locale, and surfaces the built-in registry for inspection. The voice field is mandatory per product in the media-locale-manifest schema (no empty-string `voice: ""` allowed); use `skip: true` to drop a product.
+
+**Use when:** am-coder at Phase 2 dispatch; every TTS call resolves voice through this registry.
+
+**Key API:**
+- `resolve_voice(book, locale, tts_provider)` -- returns the voice id string
+- `list_voices(locale, tts_provider)` -- returns list of voice ids for that provider
+- `VOICE_REGISTRY` -- built-in defaults per provider (kokoro, edge-tts)
+
+**Built-in defaults:**
+- kokoro + en -> `af_heart` (Kokoro Grade A)
+- edge-tts + ar -> `ar-SA-HamedNeural`
+- See source for full table.
+
+**See also:** `book-kit/docs/SCRIPTS.md` `## voices.py` section.
+
+---
+
+#### `media_tts.py` - per-chapter audio synthesis (Phase 2b)
+
+**Path:** `book-kit/book_workflow/scripts/media_tts.py`
+
+**Purpose:** H2-driven chunker + per-locale TTS dispatcher. Splits a chapter into H2-aligned chunks (~200-400 tokens each) and synthesizes one MP3 per chunk. Dispatches to Kokoro (en default) or edge-tts (ar default) based on the media-locale-manifest; falls back through three-tier resolution. Emits a TTS manifest alongside each chapter's audio: `books/<slug>/chapters/ch-NN-words.json` consumed by `transcribe_chapter.py`.
+
+**Use when:** Phase 2 dispatch (TTS lane).
+
+**Key flags:**
+- `--book <dir>` - book root (required)
+- `--chapter ch-NN` - chapter id (required)
+- `--locale en|ar` - locale code (required)
+- `--out <path>` - output MP3 path (must resolve under book root)
+- `--tts-provider kokoro|edge-tts` - overrides manifest if set
+
+**Prerequisite:** `uv pip install kokoro==0.9.4 edge-tts==7.2.3` into `.venv`.
+
+**See also:** `book-kit/docs/SCRIPTS.md` `## media_tts.py` section, `book-kit/book_workflow/lib/tts_events.py` (event-format helpers for boundary metadata).
+
+---
+
+### Caption (Phase 3)
+
+#### `check_whisper_deps.py` - faster-whisper dependency check (Phase 3)
+
+**Path:** `book-kit/book_workflow/scripts/check_whisper_deps.py`
+
+**Purpose:** Verifies that `faster-whisper` is installed and importable; reports the available ASR models (small, medium, large-v3) and the Hugging Face cache directory. Exits 3 if the package is missing; emits an actionable install hint via `lib/errors.py`.
+
+**Use when:** Before any Phase 3 dispatch (caption pipeline). am-coder calls this at the top of every caption leg.
+
+**Key flags:**
+- `--language en|ar` - hint which ASR model to prefer (ar=large-v3, en=small)
+- `--self-check` - emit version + device + cache-dir info; exit 0
+- `--cache-dir <path>` - override the HF cache directory (default: `~/.cache/huggingface`)
+- `--device cuda|cpu` - force device (default: auto-detect)
+
+**Note:** The default `--cache-dir` of `~/.cache/huggingface` is a known leak (Deferred WARN W1 — fix in a v1.3.1 polish dispatch). For notebook work, pass `--cache-dir <repo>/.cache/faster-whisper`.
+
+**Prerequisite:** `uv pip install faster-whisper==1.2.1`.
+
+**See also:** `book-kit/docs/SCRIPTS.md` `## check_whisper_deps.py` section.
+
+---
+
+#### `transcribe_chapter.py` - faster-whisper ASR with word timestamps (Phase 3)
+
+**Path:** `book-kit/book_workflow/scripts/transcribe_chapter.py`
+
+**Purpose:** Runs faster-whisper on a chapter's audio MP3 with `word_timestamps=True`. Writes a JSON with per-word `{word, start, end, probability}` entries. Per-locale model selection: `ar -> large-v3`, `en -> small` (configurable via `MODEL_FOR_LOCALE`).
+
+**Use when:** Phase 3 caption pipeline (after `media_tts.py` produces audio).
+
+**Key flags:**
+- `--book <dir>` - book root
+- `--chapter ch-NN` - chapter id
+- `--locale en|ar` - locale code
+- `--out <path>` - output words JSON path
+- `--mp3 <path>` - input audio MP3 path
+- `--dry-run` - print the plan without running
+- `--from <path>` - resume from a previous JSON
+- `--only <N>` - only transcribe the first N segments
+
+**See also:** `book-kit/docs/SCRIPTS.md` `## transcribe_chapter.py` section.
+
+---
+
+#### `align_srt.py` - difflib SequenceMatcher SRT alignment (Phase 3)
+
+**Path:** `book-kit/book_workflow/scripts/align_srt.py`
+
+**Purpose:** Aligns faster-whisper word timestamps against the canonical chapter text using `difflib.SequenceMatcher` at chunk granularity. Emits an SRT with one cue per matched text segment. Includes `normalize_arabic()` to strip diacritics (U+0610-U+061A, U+064B-U+065F, U+0670, U+06D6-U+06DC, U+06DF-U+06E4, U+06E7-U+06E8, U+06EA-U+06ED) and normalize alef/yaa/tatweel for genuine-Arabic alignment. Detects Latin text in non-English locales and drops the drift floor with a translation-pending warning.
+
+**Use when:** Phase 3 caption pipeline (after `transcribe_chapter.py` produces a words JSON).
+
+**Key flags:**
+- `--book <dir>` - book root
+- `--chapter ch-NN` - chapter id
+- `--locale en|ar` - locale code
+- `--words-json <path>` - input words JSON
+- `--out <path>` - output SRT path
+- `--drift-floor <float>` - minimum match ratio (default: 0.70); below this, raises exit 4
+
+**Exit codes:** 0 = aligned, 2 = input error, 4 = drift above floor.
+
+**See also:** `book-kit/docs/SCRIPTS.md` `## align_srt.py` section.
+
+---
+
+#### `srt_to_ass.py` - pysubs2 SRT to ASS with Amiri RTL (Phase 3)
+
+**Path:** `book-kit/book_workflow/scripts/srt_to_ass.py`
+
+**Purpose:** Converts an SRT to an ASS subtitle file using `pysubs2`. For Arabic: forces `WrapStyle=2` + `\an2` alignment + Amiri font. For English: uses the default sans-serif. The ASS file is what the video assemblers consume via libass `ass=...:shaping=complex`.
+
+**Use when:** Phase 3 caption pipeline (after `align_srt.py` produces an SRT).
+
+**Key flags:**
+- `--in <srt-path>` - input SRT
+- `--out <ass-path>` - output ASS
+- `--locale en|ar` - source locale (required, chooses WrapStyle + font)
+- `--font-size <int>` - subtitle font size in points (default: 24)
+
+**Prerequisite:** Amiri font installed via `install_amiri.py`; `pysubs2==1.8.1` in venv.
+
+**See also:** `book-kit/docs/SCRIPTS.md` `## srt_to_ass.py` section.
+
+---
+
+#### `install_amiri.py` - Amiri font installer (Phase 3)
+
+**Path:** `book-kit/book_workflow/scripts/install_amiri.py`
+
+**Purpose:** Downloads the Amiri font family (Regular, Italic, Bold, BoldItalic, Quran) from the official GitHub release. Idempotent (skips download if `EXPECTED_MIN_FONTS=5` are already at `--target-dir`). Exits 3 if download fails; emits an actionable hint.
+
+**Use when:** Before any Phase 3 Arabic caption work. Run once per host.
+
+**Key flags:**
+- `--target-dir <path>` - install dir (default: `%LOCALAPPDATA%\fonts` on Windows, `~/.fonts` on Unix)
+- `--verify` - check existing install; exit 0 if >= 5 fonts present
+- `--force` - re-download even if installed
+
+**Note:** No SHA256SUMS verification on the zip (Deferred WARN W3 — fix in a v1.3.1 polish dispatch).
+
+**See also:** `book-kit/docs/SCRIPTS.md` `## install_amiri.py` section.
+
+---
+
+### ffmpeg assembly (Phase 4)
+
+#### `assemble_audiobook.py` - M4B assembler with two-pass loudnorm (Phase 4a)
+
+**Path:** `book-kit/book_workflow/scripts/assemble_audiobook.py`
+
+**Purpose:** Concatenates per-chapter MP3s into a single M4B audiobook with chapter markers, ID3 metadata (title, author, language ISO 639-2), and embedded cover PNG. Two-pass loudnorm (I=-19 LUFS, TP=-2 dBTP, LRA=11) brings the assembled audio to streaming-platform targets. `--self-check` validates chapter count matches input. Voice-policy enforcement raises exit 2 when the manifest voice differs from the synthesized voice.
+
+**Use when:** Phase 4a dispatch (audiobook lane).
+
+**Key flags:**
+- `--book <dir>` - book root
+- `--out <path>` - output M4B path
+- `--locale en|ar` - locale code
+- `--cover <path>` - cover image (overrides fallback ladder)
+- `--no-loudnorm` - skip both loudnorm passes
+- `--self-check` - assert chapter count matches input
+
+**Cover fallback ladder:** `figures/cover.png` -> `chapters-rendered/*.png` (first match). If all tiers missing, raises exit 2.
+
+**Exit codes:** 0 = success, 2 = input error, 3 = missing dep (ffmpeg), 4 = self-check fail.
+
+**Performance:** 30s wall for a 700s chapter (no video render); two-pass loudnorm adds ~5s.
+
+**See also:** `book-kit/docs/SCRIPTS.md` `## assemble_audiobook.py` section.
+
+---
+
+#### `ffmpeg_zoompan.py` - shared Ken Burns library (Phase 4b)
+
+**Path:** `book-kit/book_workflow/scripts/ffmpeg_zoompan.py`
+
+**Purpose:** Library (not a CLI). Exports `compute_zoompan_filter(width, height, audio_duration, scale_mult=4)` and `supersample_zoompan_filterchain(width, height, audio_duration, scale_mult=4)`. The 4x supersample (`scale=8000:-1` -> `zoompan` -> `scale=1920:1080`) is the canonical Ken Burns trick to kill zoompan judder. Default `ZOOM_DEFAULT_30S_NATURAL = (1.0, 1.08, "0", "ih/2-ih/(2*zoom)")` for natural 1.0x to 1.08x zoom over 30s. Imported by `assemble_video_horizontal.py` and `assemble_video_trailer.py`; not invoked directly.
+
+**Use when:** Shared library; never invoked standalone. Imported by every video assembler.
+
+**Performance:** 4x supersample = ~11x realtime at 1920x1080. Documented escape hatches: `scale_mult=2` (scale=4000:-1) for ~4x faster renders with slight quality loss; NVENC (`-c:v h264_nvenc`) for ~5-10x faster on Nvidia GPUs. **These are plumbing-level constants — not yet CLI-reachable** (Deferred WARN F5 from Phase 5 review; fix in a v1.3.1 polish dispatch).
+
+**See also:** `book-kit/docs/SCRIPTS.md` `## ffmpeg_zoompan.py` section.
+
+---
+
+#### `assemble_video_horizontal.py` - Mode-1 landscape video (Phase 4b)
+
+**Path:** `book-kit/book_workflow/scripts/assemble_video_horizontal.py`
+
+**Purpose:** Renders a 1920x1080 Mode-1 video from a single static cover + Ken Burns zoompan + audio + optional burned subs (libass `ass=...:shaping=complex`) + optional BGM (amix). Per-chapter loop: one MP4 per chapter, then a final concat. Emits `figures/media-video-manifest.json` sidecar.
+
+**Use when:** Phase 4b dispatch (horizontal video lane).
+
+**Key flags:**
+- `--book <dir>` - book root
+- `--chapter ch-NN | --all` - one chapter or the whole book
+- `--out <path>` - output MP4 path
+- `--audio <path>` - per-chapter MP3
+- `--cover <path>` - cover image (overrides fallback ladder)
+- `--burn-subs` + `--subs <ass>` - burn subtitles
+- `--bgm <path>` - background music
+
+**Performance:** ~11x realtime at 4x supersample (e.g., 60s clip = 11.2 min wall). Full 700s chapter = ~131 min estimated. Use `scale_mult=2` escape hatch (not yet CLI-reachable) or switch to NVENC.
+
+**Exit codes:** 0 = success, 2 = input error, 3 = missing dep (ffmpeg), 4 = ffmpeg runtime error.
+
+**See also:** `book-kit/docs/SCRIPTS.md` `## assemble_video_horizontal.py` section.
+
+---
+
+#### `assemble_video_trailer.py` - 60-90s teaser (Phase 4b)
+
+**Path:** `book-kit/book_workflow/scripts/assemble_video_trailer.py`
+
+**Purpose:** Builds a single 60-90s teaser from the whole book. Clip-selection pass picks the first ~12 chunks by 1500-char budget across all chapters, with proportional per-chapter audio windows. Otherwise mirrors `assemble_video_horizontal.py` (1920x1080, Ken Burns, libass, BGM).
+
+**Use when:** Phase 4b dispatch when the user wants a teaser.
+
+**Key flags:** same as `assemble_video_horizontal.py`.
+
+**Performance:** ~11x realtime for 60-90s; ~10-15 min wall per trailer.
+
+**See also:** `book-kit/docs/SCRIPTS.md` `## assemble_video_trailer.py` section.
+
+---
+
+#### `assemble_reel.py` - vertical 1080x1920 reel, 3 platforms (Phase 4b)
+
+**Path:** `book-kit/book_workflow/scripts/assemble_reel.py`
+
+**Purpose:** Renders a 1080x1920 vertical reel and fans out to 3 platform-specific MP4s: YouTube Shorts (I=-14/TP=-1, bottom-center captions), Instagram Reels (I=-16/TP=-1.5, bottom-center), TikTok (I=-14/TP=-1, top-center). Uses a two-step serial architecture: render shared base video to a temp file (one ffmpeg, no audio, no per-platform filter), then per-platform ffmpeg applies loudnorm + ASS alignment + vignette. Peak memory bounded by ONE libx264 encoder at a time.
+
+**Use when:** Phase 4b dispatch (vertical reel lane).
+
+**Key flags:**
+- `--book <dir>` - book root
+- `--chapter ch-NN` - chapter id
+- `--out <path>` - base output MP4 (gets `-yt`, `-ig`, `-tiktok` suffixes)
+- `--audio <path>` - per-chapter MP3
+- `--cover <path>` - cover image (overrides fallback ladder)
+- `--burn-subs` + `--subs <ass>` - burn subtitles
+- `--bgm <path>` - background music
+- `--platforms yt,ig,tiktok` - comma-separated platform list (default: all three)
+
+**Performance:** ~6x realtime single-platform. Multi-platform fan-out runs serially after a single base render.
+
+**Known limits:**
+- 4:4:4 chroma replaced with 4:2:0 (`yuv420p`) for fan-out safety (Phase 5 Bug #3 fix).
+- Per-platform loudnorm is single-pass (one render + per-platform apply). Two-pass is acceptable per plan and currently deferred.
+
+**See also:** `book-kit/docs/SCRIPTS.md` `## assemble_reel.py` section.
+
+---
+
+### Shared library code (Phase 2b / Phase 3)
+
+#### `lib/tts_events.py` - TTS event-format helpers
+
+**Path:** `book-kit/book_workflow/lib/tts_events.py`
+
+**Purpose:** Library. Translates raw TTS event streams (WordBoundary, SentenceBoundary) into a uniform format consumable by downstream captioning. Public API: `TTSEventCollector`, `collect_sentence_offsets` (async), `sentence_offsets_to_srt`, `get_provider_event_format` (returns `'ms-windows'` for edge-tts, `'kokoro-v0.9'` for Kokoro).
+
+**Use when:** Imported by am-coder when wiring TTS event collectors into a TTS provider.
+
+**Note:** HINTS in `lib/errors.py` are mutable dicts; freeze with `MappingProxyType` or document as const before exposing them as a public API (WARN from Phase 2b review; trivial fix in a v1.3.1 polish).
+
+**See also:** `book-kit/docs/SCRIPTS.md` `## lib/tts_events.py` section.
+
+---
+
+#### `lib/errors.py` - actionable error hints
+
+**Path:** `book-kit/book_workflow/lib/errors.py`
+
+**Purpose:** Library. Defines `MediaPipelineError(Exception)` carrying `.hint` + `.exit_code`; `raise_actionable(error_kind, **ctx)` raises; `format_hint(error_kind, **ctx)` returns without raising. The `HINTS` dict has 6 keys: `missing_amiri_font`, `voice_unavailable`, `schema_invalid`, `audio_empty`, `comfyui_not_running`, `unsupported_locale`.
+
+**Use when:** Every Phase 2-4 script imports `format_hint` and `raise_actionable` for uniform error reporting.
+
+**See also:** `book-kit/docs/SCRIPTS.md` `## lib/errors.py` section.
 
 ---
 

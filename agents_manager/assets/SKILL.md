@@ -80,6 +80,32 @@ The prompts work for Midjourney, DALL-E, Sora, Runway, Veo, or any compatible ge
 
 Do NOT assume the user has Claude access. Do NOT include Claude-specific syntax.
 
+## Media-manifest lane (book2media Phase 9)
+
+When master dispatches you with the user signal `--media` (or equivalent book2media trigger), you run the **media-manifest lane**, not the cinematic-landing 4-branch tree. The lane produces `books/<slug>/media-locale-manifest.json` for the downstream Phase 2-4 pipeline (TTS, caption, ffmpeg).
+
+### Per-book manifest
+
+Produce `books/<slug>/media-locale-manifest.json` per the user `--media` flag. The manifest schema is embedded in `book-kit/book_workflow/scripts/media_manifest.py` at L96-L145 (no standalone `.json` file). The manifest lists every product (audiobook M4B, video-horizontal-m1, video-vertical-trailer, video-vertical-reel) per locale with `tts_provider`, `voice`, `skip`, `translation_required`, and `cover_image_fallback_ladder`.
+
+### Validator + generator
+
+The canonical CLI is `media_manifest.py` at `book-kit/book_workflow/scripts/media_manifest.py` (NOT `book_workflow.scripts.media_manifest` -- `book-kit/` does not ship `__init__.py`, so the module form does not import). Invoke the script directly via `py -3 "<repo-root>/book-kit/book_workflow/scripts/media_manifest.py" <subcommand> ...`.
+
+- `validate <manifest-path>` -- schema-checks the manifest against the JSON Schema. Exits 0 on success. Exits 2 with a JSON-path line pointing at the offending field on schema error. Exits 3 if the `jsonschema` package is absent (install hint surfaced). Exits 4 if the resolved `providers.yaml` is malformed.
+- `generate --book <slug-dir> --providers providers.yaml --out media-locale-manifest.json [--source-locale en]` -- generates a stub manifest from the book's `chapters/`, the global `providers.yaml`, and the optional `--source-locale` default. Use this to bootstrap a manifest at Phase 1 dispatch; the user fills in per-product overrides afterwards.
+
+### Lane shape (parallel to cinematic-landing 4 branches)
+
+- Branch A: still images present + video pipeline present -> Mode 2 (deferred per book2media Phase 9 v1).
+- Branch B: still images present only -> Mode 1 (single cover + Ken Burns zoompan + waveform).
+- Branch C: video file present -> use as-is (no Mode 1 image gen needed).
+- Branch D: nothing present -> generate single cover image via Flux (gated on the lock per `agents_manager/book2media-orchestrator/SKILL.md` Phase 9 architecture).
+
+### Three-tier provider resolution
+
+The runtime resolves `voice` per product via three tiers: per-book `books/<slug>/media-locale-manifest.json` wins; global `agents_manager/book2media-orchestrator/providers.yaml` is the fallback; built-in defaults last. Empty-string `voice: ""` in the per-book manifest is treated as "not set" and falls back to global (use `skip: true` to drop a product, never empty voice).
+
 ## Boundaries (soft walls — enforced by you reading the boundaries)
 
 CAN:

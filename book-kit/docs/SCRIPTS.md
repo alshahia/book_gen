@@ -1,8 +1,66 @@
 # Scripts — flag reference
 
-All 9 scripts live in `book-kit/book_workflow/scripts/`. They're
-stdlib-only, idempotent, and ship with `--self-check` plus 89 pytest
-tests (`cd book-kit && py -m pytest tests/`).
+All 21 scripts + 2 lib files live in `book-kit/book_workflow/scripts/`
+and `book-kit/book_workflow/lib/`. They're stdlib-only, idempotent, and
+ship with `--self-check` plus 321 pytest tests across 33 test files
+(`cd book-kit && py -m pytest tests/`). v1.3.0 added 13 new scripts +
+2 new lib files for the book2media (Phase 9) lane.
+
+---
+
+## media_manifest.py
+
+Validates and generates `books/<slug>/media-locale-manifest.json` (Phase 9 of the book-gen pipeline). The manifest is the per-book registry of media products (audiobook M4B, video-horizontal-m1, video-vertical-trailer, video-vertical-reel) per locale. This is the script am-assets invokes at Phase 1 dispatch (book2media-orchestrator) and the script `book_check.py` may invoke as part of the Phase 9 gate once the media-manifest HARD-gate is wired in.
+
+**Invocation shape (canonical):**
+
+The script runs as a direct file (NOT a Python module - `book-kit/` does not ship `__init__.py`, so `book_workflow.scripts.media_manifest` is not importable). On Windows use `py -3`; on Unix use `python3`.
+
+**Usage:**
+
+```sh
+# Validate a manifest against the JSON Schema
+py -3 "<repo-root>/book-kit/book_workflow/scripts/media_manifest.py" validate <manifest-path>
+
+# Generate a stub manifest from a book's chapters + global providers.yaml
+py -3 "<repo-root>/book-kit/book_workflow/scripts/media_manifest.py" generate \
+    --book <slug-dir> \
+    --providers providers.yaml \
+    --out media-locale-manifest.json \
+    --source-locale en
+```
+
+**Subcommands:**
+
+| Subcommand | Purpose | Required flags | Optional flags |
+|---|---|---|---|
+| `validate` | schema-checks the manifest against the JSON Schema embedded in `book-kit/book_workflow/scripts/media_manifest.py` at L96-L145 (no standalone `.json` file) | `<manifest-path>` (positional) | -- |
+| `generate` | builds a stub manifest from the book's chapters, the global `providers.yaml`, and an optional `--source-locale` default | `--book`, `--providers`, `--out` | `--source-locale` (default: `en`) |
+
+**Exit codes:**
+
+| Code | Meaning |
+|---|---|
+| 0 | success (validate or generate) |
+| 2 | input error (schema/field error, file not found, path escapes book root) |
+| 3 | missing dependency (`jsonschema` package absent) |
+| 4 | providers.yaml malformed |
+
+**Behavior on schema error:**
+
+The validate subcommand emits a JSON-path line on schema error pointing at the offending field, e.g.:
+
+```
+products.0.voice: '' is not one of ['af_heart', 'bf_emma', ...]
+```
+
+The exit code is 2 in this case. The script does NOT mutate the manifest -- validation is read-only.
+
+**Three-tier provider resolution (enforced):**
+
+The validator enforces the resolution rule (per-book manifest wins, `providers.yaml` next, built-in defaults last) and rejects empty-string `voice: ""` in the per-book manifest (use `skip: true` to drop a product, never an empty voice string).
+
+**See also:** `book-kit/docs/TOOLKIT.md` `### Media manifest` section, `agents_manager/book2media-orchestrator/SKILL.md` Phase 1, `agents_manager/assets/SKILL.md` `## Media-manifest lane (book2media Phase 9)`.
 
 ---
 
@@ -952,3 +1010,458 @@ directory, PyMuPDF cannot open the PDF).
 
 **Forces UTF-8 stdio** at module load before any argparse construction or
 output (WARN #15 / #22 inheritance).
+
+---
+
+## voices.py
+
+TTS voice registry with three-tier resolution (per-book manifest > global `providers.yaml` > built-in defaults). Used by `media_tts.py` and any Phase 2 dispatch that needs a voice for a given `(book, locale, tts_provider)` triple.
+
+**Invocation shape:** import as a module or use `py -3 voices.py <cmd>` for ad-hoc inspection. The script ships an `--inspect` subcommand that prints the full registry and exits 0.
+
+**Public API:**
+
+| Function | Returns | Notes |
+|---|---|---|
+| `resolve_voice(book, locale, tts_provider)` | `str` (voice id) | Three-tier lookup. Raises `MediaPipelineError(voice_unavailable, exit=2)` if no voice found in any tier. |
+| `list_voices(locale, tts_provider)` | `list[str]` | All voices available for the locale/provider. Empty list if provider unknown. |
+| `VOICE_REGISTRY` | `dict` | Built-in defaults; read-only. Kokoro: `af_heart`, `am_michael`, `bf_emma`, `bm_george`, ...; edge-tts: `en-US-JennyNeural`, `en-US-GuyNeural`, `ar-SA-HamedNeural`, `ar-EG-SalmaNeural`, ... |
+
+**Exit codes (when run as a script):** 0 = success, 2 = unknown provider/locale.
+
+**Three-tier resolution (enforced):**
+1. Per-book `media-locale-manifest.json` `products[].voice` field (authoritative).
+2. Global `providers.yaml` per-locale `voice` default.
+3. Built-in `VOICE_REGISTRY` (last-resort defaults).
+
+**See also:** `book-kit/docs/TOOLKIT.md` `### voices.py` section, `media_tts.py` for the synthesis path.
+
+---
+
+## media_tts.py
+
+H2-driven chunker + per-locale TTS dispatcher. Splits a chapter into H2-aligned chunks and synthesizes one MP3 per chunk via Kokoro (en default) or edge-tts (ar default). Emits a TTS manifest consumed by `transcribe_chapter.py`.
+
+**Invocation shape (canonical):**
+
+```sh
+py -3 "<repo-root>/book-kit/book_workflow/scripts/media_tts.py" \
+    --book <slug-dir> \
+    --chapter ch-NN \
+    --locale en|ar \
+    --out <path-to-mp3> \
+    [--tts-provider kokoro|edge-tts]
+```
+
+**Flags:**
+
+| Flag | Required | Purpose |
+|---|---|---|
+| `--book` | yes | Book root (e.g., `books/<slug>`) |
+| `--chapter` | yes | Chapter id (e.g., `ch-01`) |
+| `--locale` | yes | `en` or `ar` (manifest is per-locale) |
+| `--out` | yes | Output MP3 path (must resolve under book root) |
+| `--tts-provider` | no | Override the manifest's provider (otherwise resolved from `voices.resolve_voice`) |
+
+**Behavior:**
+- Chunker: H2-aligned, ~200-400 tokens per chunk. Falls back to paragraph splitting if a chunk is still too long, then to word-window splitting as last resort.
+- Re-runs are idempotent: same chapter + same manifest + same voice = byte-identical output (verified in v1.3.0 smoke).
+- H2-driven chunks matching `gate_summary.py` P17 chunker for symmetry.
+
+**Exit codes:** 0 = success, 2 = input error, 3 = missing dep (kokoro/edge-tts), 4 = TTS provider failed.
+
+**See also:** `book-kit/docs/TOOLKIT.md` `### media_tts.py` section, `voices.py` for voice resolution.
+
+---
+
+## check_whisper_deps.py
+
+Verifies `faster-whisper` is installed; reports the available ASR models and the Hugging Face cache directory. Exits 3 with an actionable install hint if the package is missing.
+
+**Invocation shape:**
+
+```sh
+py -3 "<repo-root>/book-kit/book_workflow/scripts/check_whisper_deps.py" \
+    [--language en|ar] \
+    [--self-check] \
+    [--cache-dir <path>] \
+    [--device cuda|cpu]
+```
+
+**Flags:**
+
+| Flag | Required | Purpose |
+|---|---|---|
+| `--language` | no | Hint which model to prefer (en=small, ar=large-v3). Default: auto |
+| `--self-check` | no | Print version + device + cache-dir; exit 0 |
+| `--cache-dir` | no | Override HF cache dir (default: `~/.cache/huggingface` -- known leak, see Deferred WARN W1) |
+| `--device` | no | `cuda` or `cpu` (default: auto-detect) |
+
+**Exit codes:** 0 = deps OK, 3 = missing dep (emits install hint via `lib/errors.py`).
+
+**See also:** `book-kit/docs/TOOLKIT.md` `### check_whisper_deps.py` section.
+
+---
+
+## transcribe_chapter.py
+
+Runs faster-whisper on a chapter's MP3 with `word_timestamps=True`. Writes a JSON with per-word `{word, start, end, probability}` entries consumed by `align_srt.py`.
+
+**Invocation shape:**
+
+```sh
+py -3 "<repo-root>/book-kit/book_workflow/scripts/transcribe_chapter.py" \
+    --book <slug-dir> \
+    --chapter ch-NN \
+    --locale en|ar \
+    --out <words-json-path> \
+    --mp3 <audio-path> \
+    [--dry-run] \
+    [--from <words-json-path>] \
+    [--only <N>]
+```
+
+**Flags:**
+
+| Flag | Required | Purpose |
+|---|---|---|
+| `--book` | yes | Book root |
+| `--chapter` | yes | Chapter id |
+| `--locale` | yes | `en` or `ar` |
+| `--out` | yes | Output words JSON path (must resolve under book root) |
+| `--mp3` | yes | Input audio MP3 path |
+| `--dry-run` | no | Print the plan without invoking the model |
+| `--from` | no | Resume from a previous JSON (skip already-transcribed segments) |
+| `--only` | no | Only transcribe the first N segments |
+
+**Model selection** (configurable via `MODEL_FOR_LOCALE` in source): `ar -> large-v3`, `en -> small`.
+
+**Exit codes:** 0 = success, 2 = input error, 3 = missing dep (faster-whisper), 4 = runtime error.
+
+**See also:** `book-kit/docs/TOOLKIT.md` `### transcribe_chapter.py` section, `align_srt.py` for downstream alignment.
+
+---
+
+## align_srt.py
+
+Aligns faster-whisper word timestamps against the canonical chapter text via `difflib.SequenceMatcher` at chunk granularity. Emits an SRT with one cue per matched segment.
+
+**Invocation shape:**
+
+```sh
+py -3 "<repo-root>/book-kit/book_workflow/scripts/align_srt.py" \
+    --book <slug-dir> \
+    --chapter ch-NN \
+    --locale en|ar \
+    --words-json <words-json-path> \
+    --out <srt-path> \
+    [--drift-floor <float>]
+```
+
+**Flags:**
+
+| Flag | Required | Purpose |
+|---|---|---|
+| `--book` | yes | Book root |
+| `--chapter` | yes | Chapter id |
+| `--locale` | yes | `en` or `ar` |
+| `--words-json` | yes | Input words JSON (from `transcribe_chapter.py`) |
+| `--out` | yes | Output SRT path |
+| `--drift-floor` | no | Minimum match ratio (default: 0.70); below this, raises exit 4 |
+
+**Arabic normalization (`normalize_arabic`):** strips diacritics (U+0610-U+061A, U+064B-U+065F, U+0670, U+06D6-U+06DC, U+06DF-U+06E4, U+06E7-U+06E8, U+06EA-U+06ED) and normalizes alef/yaa/tatweel. Genuine-Arabic chapters align cleanly through tashkil/alef-form variants.
+
+**Latin detection:** if the chapter text has > 30% Latin characters and the locale is non-English, the script drops the drift floor to 0.0 and emits a translation-pending warning. SRT is still emitted (fragmentary cues); full fix is to translate the chapter before re-aligning.
+
+**Exit codes:** 0 = aligned, 2 = input error, 4 = drift above floor (or translation-pending case).
+
+**See also:** `book-kit/docs/TOOLKIT.md` `### align_srt.py` section, `srt_to_ass.py` for downstream ASS conversion.
+
+---
+
+## srt_to_ass.py
+
+Converts an SRT to an ASS subtitle file using `pysubs2`. For Arabic: forces `WrapStyle=2` + `\an2` alignment + Amiri font. For English: default sans-serif. The ASS file is what the video assemblers consume via libass `ass=...:shaping=complex`.
+
+**Invocation shape:**
+
+```sh
+py -3 "<repo-root>/book-kit/book_workflow/scripts/srt_to_ass.py" \
+    --in <srt-path> \
+    --out <ass-path> \
+    --locale en|ar \
+    [--font-size <int>]
+```
+
+**Flags:**
+
+| Flag | Required | Purpose |
+|---|---|---|
+| `--in` | yes | Input SRT path |
+| `--out` | yes | Output ASS path |
+| `--locale` | yes | Source locale: `en` or `ar` (chooses WrapStyle + font) |
+| `--font-size` | no | Subtitle font size in points (default: 24) |
+
+**Exit codes:** 0 = success, 2 = input error, 3 = missing Amiri font (emits install hint via `lib/errors.py`).
+
+**Prerequisite:** Amiri installed via `install_amiri.py`; `pysubs2==1.8.1` in venv.
+
+**See also:** `book-kit/docs/TOOLKIT.md` `### srt_to_ass.py` section.
+
+---
+
+## install_amiri.py
+
+Downloads the Amiri font family (Regular, Italic, Bold, BoldItalic, Quran) from the official GitHub release. Idempotent: skips download if `EXPECTED_MIN_FONTS=5` are already at `--target-dir`.
+
+**Invocation shape:**
+
+```sh
+py -3 "<repo-root>/book-kit/book_workflow/scripts/install_amiri.py" \
+    [--target-dir <font-dir>] \
+    [--verify] \
+    [--force]
+```
+
+**Flags:**
+
+| Flag | Required | Purpose |
+|---|---|---|
+| `--target-dir` | no | Install dir (default: `%LOCALAPPDATA%\fonts` on Windows, `~/.fonts` on Unix) |
+| `--verify` | no | Check existing install; exit 0 if >= 5 fonts present |
+| `--force` | no | Re-download even if installed |
+
+**Exit codes:** 0 = success (or verified), 2 = input error, 3 = download/extract failed (emits hint).
+
+**Note:** No SHA256SUMS verification on the zip (Deferred WARN W3 — fix in a v1.3.1 polish dispatch).
+
+**See also:** `book-kit/docs/TOOLKIT.md` `### install_amiri.py` section.
+
+---
+
+## assemble_audiobook.py
+
+Concatenates per-chapter MP3s into a single M4B audiobook with chapter markers, ID3 metadata, embedded cover PNG, and two-pass loudnorm (I=-19 LUFS, TP=-2 dBTP, LRA=11).
+
+**Invocation shape:**
+
+```sh
+py -3 "<repo-root>/book-kit/book_workflow/scripts/assemble_audiobook.py" \
+    --book <slug-dir> \
+    --out <m4b-path> \
+    --locale en|ar \
+    [--cover <png-path>] \
+    [--no-loudnorm] \
+    [--self-check]
+```
+
+**Flags:**
+
+| Flag | Required | Purpose |
+|---|---|---|
+| `--book` | yes | Book root |
+| `--out` | yes | Output M4B path (must resolve under book root) |
+| `--locale` | yes | `en` or `ar` (matches synthesized voice manifest) |
+| `--cover` | no | Cover PNG (overrides fallback ladder) |
+| `--no-loudnorm` | no | Skip both loudnorm passes |
+| `--self-check` | no | Assert chapter count matches input |
+
+**Cover fallback ladder:** `figures/cover.png` -> `chapters-rendered/*.png` (first match). If all tiers missing, raises exit 2.
+
+**Voice policy:** if the manifest voice differs from the synthesized voice, raises `MediaPipelineError(voice_unavailable, exit=2)`. (This is a sanity check; the synthesis should have used the same voice.)
+
+**Language tag:** uses ISO 639-2 (`en -> eng`, `ar -> ara`) since ffmpeg's MP4 `mdhd` atom only accepts 3-char codes.
+
+**Exit codes:** 0 = success, 2 = input error, 3 = missing dep (ffmpeg), 4 = self-check fail or ffmpeg runtime error.
+
+**See also:** `book-kit/docs/TOOLKIT.md` `### assemble_audiobook.py` section.
+
+---
+
+## ffmpeg_zoompan.py
+
+Shared Ken Burns library. Library only -- no CLI. Exports `compute_zoompan_filter`, `supersample_zoompan_filterchain`, and `ZOOM_DEFAULT_30S_NATURAL`.
+
+**Public API:**
+
+| Function | Returns | Notes |
+|---|---|---|
+| `compute_zoompan_filter(width, height, audio_duration, scale_mult=4)` | `3-tuple[str, str, str]` | Returns `(scale_in, zoompan, scale_out)` -- the three filter segments to be joined with commas for ffmpeg's `-vf` flag. scale_in is `scale={W*scale_mult}:-1`, scale_out is `scale={W}:{H}`, zoompan is the per-frame expression. |
+| `supersample_zoompan_filterchain(target_w, target_h, dur_s, scale_mult=4)` | `3-tuple[str, str, str]` | Same shape as above, with defaults tuned for the assembly pipeline. Callers join with commas for the final `-filter_complex` argv. |
+| `ZOOM_DEFAULT_30S_NATURAL` | `tuple` | `(1.0, 1.08, "0", "ih/2-ih/(2*zoom)")` for 1.0x -> 1.08x zoom over 30s |
+
+**Why 4x supersample:** the canonical Ken Burns trick to kill zoompan judder. Renders at 8000x4500 then downsamples to 1920x1080. Documented escape hatches (`scale_mult=2` for ~4x faster, NVENC for ~5-10x faster) are plumbing-level constants -- not yet CLI-reachable (Deferred WARN F5 from Phase 5 review).
+
+**Imported by:** `assemble_video_horizontal.py`, `assemble_video_trailer.py`. Never invoked directly.
+
+**See also:** `book-kit/docs/TOOLKIT.md` `### ffmpeg_zoompan.py` section.
+
+---
+
+## assemble_video_horizontal.py
+
+Renders a 1920x1080 Mode-1 video from a single static cover + Ken Burns zoompan + audio + optional burned subs + optional BGM. Per-chapter loop or whole-book loop via `--all`.
+
+**Invocation shape:**
+
+```sh
+py -3 "<repo-root>/book-kit/book_workflow/scripts/assemble_video_horizontal.py" \
+    --book <slug-dir> \
+    --chapter ch-NN | --all \
+    --out <mp4-path> \
+    --audio <mp3-path> \
+    [--cover <png-path>] \
+    [--burn-subs --subs <ass-path>] \
+    [--bgm <audio-path>]
+```
+
+**Flags:**
+
+| Flag | Required | Purpose |
+|---|---|---|
+| `--book` | yes | Book root |
+| `--chapter` or `--all` | yes (one) | One chapter id, or `--all` for whole book |
+| `--out` | yes | Output MP4 path |
+| `--audio` | yes | Per-chapter MP3 (single chapter) or chapter list (whole book) |
+| `--cover` | no | Cover image (overrides fallback ladder) |
+| `--burn-subs` | no | Burn the ASS subtitle file (requires `--subs`) |
+| `--subs` | with `--burn-subs` | ASS subtitle path |
+| `--bgm` | no | Background-music audio path |
+
+**Behavior:**
+- Filter chain: `supersample_zoompan_filterchain(1920, 1080, audio_dur)` + optional `ass=...:shaping=complex` + optional `amix=...[v]` + final `vignette=PI/4[v]`.
+- Per-chapter loop emits one MP4 per chapter; whole-book loop emits a single concatenated MP4.
+- Sidecar manifest at `<book>/figures/media-video-manifest.json` with `{chapters: [...], codec, width, height}`.
+
+**Performance:** ~11x realtime at 4x supersample (e.g., 60s clip = 11.2 min wall). Full 700s chapter = ~131 min estimated.
+
+**Exit codes:** 0 = success, 2 = input error, 3 = missing dep (ffmpeg), 4 = ffmpeg runtime error.
+
+**See also:** `book-kit/docs/TOOLKIT.md` `### assemble_video_horizontal.py` section.
+
+---
+
+## assemble_video_trailer.py
+
+Builds a single 60-90s teaser from the whole book. Clip-selection pass picks the first ~12 chunks by 1500-char budget across all chapters, with proportional per-chapter audio windows. Otherwise mirrors `assemble_video_horizontal.py`.
+
+**Invocation shape:** same as `assemble_video_horizontal.py` (without `--chapter`; whole-book only).
+
+**Behavior:**
+- Clip selection: budget = 1500 chars per chunk; pick the first chunks across chapters that fit the 60-90s target.
+- Audio windows: proportional per-chapter allocation; concatenated with crossfade.
+- Output: single 1920x1080 MP4 at the requested path.
+
+**Performance:** ~11x realtime for 60-90s; ~10-15 min wall per trailer.
+
+**Exit codes:** 0 = success, 2 = input error, 3 = missing dep (ffmpeg), 4 = ffmpeg runtime error.
+
+**See also:** `book-kit/docs/TOOLKIT.md` `### assemble_video_trailer.py` section.
+
+---
+
+## assemble_reel.py
+
+Renders a 1080x1920 vertical reel and fans out to 3 platform-specific MP4s (YouTube Shorts, Instagram Reels, TikTok). Uses a two-step serial architecture: render shared base video to a temp file, then per-platform ffmpeg applies loudnorm + ASS alignment + vignette.
+
+**Invocation shape:**
+
+```sh
+py -3 "<repo-root>/book-kit/book_workflow/scripts/assemble_reel.py" \
+    --book <slug-dir> \
+    --chapter ch-NN \
+    --out <base-mp4-path> \
+    --audio <mp3-path> \
+    [--cover <png-path>] \
+    [--burn-subs --subs <ass-path>] \
+    [--bgm <audio-path>] \
+    [--platforms yt,ig,tiktok]
+```
+
+**Flags:**
+
+| Flag | Required | Purpose |
+|---|---|---|
+| `--book` | yes | Book root |
+| `--chapter` | yes | Chapter id (single chapter per reel) |
+| `--out` | yes | Base output MP4 (gets `-yt`, `-ig`, `-tiktok` suffixes) |
+| `--audio` | yes | Per-chapter MP3 |
+| `--cover` | no | Cover image (overrides fallback ladder) |
+| `--burn-subs` | no | Burn the ASS subtitle file (requires `--subs`) |
+| `--subs` | with `--burn-subs` | ASS subtitle path |
+| `--bgm` | no | Background-music audio path |
+| `--platforms` | no | Comma-separated platform list (allowed: `yt,ig,tiktok`; default: all three) |
+
+**Per-platform loudnorm and caption positioning:**
+
+| Platform | I (LUFS) | TP (dBTP) | ASS alignment | Position |
+|---|---|---|---|---|
+| YouTube Shorts | -14 | -1 | 2 | bottom-center |
+| Instagram Reels | -16 | -1.5 | 2 | bottom-center |
+| TikTok | -14 | -1 | 8 | top-center |
+
+**Two-step serial architecture:**
+1. Render shared base video to `<out>-base.mp4` (one ffmpeg invocation, no audio, no per-platform filter).
+2. For each platform, run a small ffmpeg that reads the base video + audio and applies per-platform loudnorm + ASS alignment + vignette.
+
+Peak memory bounded by ONE libx264 encoder at a time.
+
+**Known limits:**
+- 4:4:4 chroma replaced with 4:2:0 (`yuv420p`) for fan-out safety (Phase 5 Bug #3 fix).
+- Per-platform loudnorm is single-pass (one render + per-platform apply). Two-pass is acceptable per plan and currently deferred.
+
+**Exit codes:** 0 = success, 2 = input error, 3 = missing dep (ffmpeg), 4 = ffmpeg runtime error.
+
+**See also:** `book-kit/docs/TOOLKIT.md` `### assemble_reel.py` section.
+
+---
+
+## lib/tts_events.py
+
+TTS event-format helpers. Library only -- no CLI. Translates raw TTS event streams (WordBoundary, SentenceBoundary) into a uniform format consumable by downstream captioning.
+
+**Public API:**
+
+| Function | Returns | Notes |
+|---|---|---|
+| `TTSEventCollector` | class | Stateful collector for TTS event streams |
+| `collect_sentence_offsets` (async) | `list[tuple]` | Collects sentence-level offsets from a TTS stream |
+| `sentence_offsets_to_srt` | `str` | Converts offsets to SRT format |
+| `get_provider_event_format(provider)` | `str` | Returns `'ms-windows'` for edge-tts, `'kokoro-v0.9'` for Kokoro |
+
+**Imported by:** am-coder when wiring TTS event collectors into a TTS provider.
+
+**Note:** HINTS in `lib/errors.py` are mutable dicts; freeze with `MappingProxyType` or document as const before exposing them as a public API (WARN from Phase 2b review; trivial fix in a v1.3.1 polish).
+
+**See also:** `book-kit/docs/TOOLKIT.md` `### lib/tts_events.py` section.
+
+---
+
+## lib/errors.py
+
+Actionable error hints. Library only -- no CLI. Defines `MediaPipelineError(Exception)` carrying `.hint` + `.exit_code`; `raise_actionable(error_kind, **ctx)` raises; `format_hint(error_kind, **ctx)` returns without raising.
+
+**Public API:**
+
+| Function | Returns | Notes |
+|---|---|---|
+| `MediaPipelineError` | exception class | Carries `.hint` (str) and `.exit_code` (int) |
+| `raise_actionable(error_kind, **ctx)` | raises | Convenience wrapper that formats the hint and raises |
+| `format_hint(error_kind, **ctx)` | `str` | Returns the formatted hint without raising |
+| `HINTS` | `dict` | 6 keys: `missing_amiri_font`, `voice_unavailable`, `schema_invalid`, `audio_empty`, `comfyui_not_running`, `unsupported_locale` |
+
+**HINTS dict (6 keys):**
+
+| Key | Exit code | Default message |
+|---|---|---|
+| `missing_amiri_font` | 3 | "Amiri font not found. Run: install_amiri.py" |
+| `voice_unavailable` | 4 | "Voice not registered for {locale} via {provider}" |
+| `schema_invalid` | 2 | "Manifest schema invalid: {detail}" |
+| `audio_empty` | 4 | "Audio file is empty or zero-duration" |
+| `comfyui_not_running` | 3 | "ComfyUI server not reachable at 127.0.0.1:8188" |
+| `unsupported_locale` | 2 | "Locale {locale} not supported by any TTS provider" |
+
+**Imported by:** every Phase 2-4 script for uniform error reporting.
+
+**See also:** `book-kit/docs/TOOLKIT.md` `### lib/errors.py` section.
+

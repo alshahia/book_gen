@@ -1,0 +1,91 @@
+version: 1
+
+# Global default provider registry for the book2media pipeline.
+# Per-book `books/<slug>/media-locale-manifest.json` overrides this file.
+# Resolution order at runtime: per-book manifest > this file > built-in defaults.
+#
+# Locked in T-2026-08-10-001 (book2media Phase 9):
+#   - English TTS: Kokoro (Apache-2.0, offline, CPU).
+#   - Arabic TTS: edge-tts (MIT, online, MS Neural).
+#   - Voice grading: English = af_heart (Grade A); Arabic = ar-SA-HamedNeural.
+#   - Reels: 1080x1920 single source render, three per-platform loudnorm outputs.
+#   - Voice policy: single narrator voice per (book, locale).
+
+tts:
+  en:
+    provider: kokoro
+    voice: af_heart
+    grade: A
+  ar:
+    provider: edge-tts
+    voice: ar-SA-HamedNeural
+    grade: native
+
+render:
+  video:
+    container: mp4
+    codec: h264
+    crf: 18
+  audiobook:
+    container: m4b
+    codec: aac
+    bitrate: 128k
+  reels:
+    aspect: 9:16
+    resolution: 1080x1920
+
+reels_targets:
+  - id: youtube_shorts
+    max_duration_s: 60
+    lufs: -14
+    true_peak_dbtp: -1.0
+    caption_safe_zone:
+      top: 250
+      bottom: 250
+      left: 0
+      right: 0
+  - id: instagram_reels
+    max_duration_s: 90
+    lufs: -16
+    true_peak_dbtp: -1.5
+    caption_safe_zone:
+      top: 250
+      bottom: 250
+      left: 0
+      right: 0
+  - id: tiktok
+    max_duration_s: 60
+    lufs: -14
+    true_peak_dbtp: -1.0
+    caption_safe_zone:
+      top: 250
+      bottom: 250
+      left: 0
+      right: 0
+
+# Resolution rules (read these when the runtime behavior is unclear):
+#
+# 1. Per-book > Global > Built-in.
+#    At dispatch time, the runtime reads books/<slug>/media-locale-manifest.json
+#    first. Any field absent from the per-book manifest falls back to this file.
+#    If this file is also missing the field, the built-in default applies.
+#    Worked example: per-book manifest overrides voice for the Arabic audiobook
+#    to "ar-EG-SalmaNeural"; the runtime uses that voice and ignores the
+#    `ar-SA-HamedNeural` default here.
+#
+# 2. Empty value handling.
+#    A per-book manifest with `voice: ""` EMPTY string is treated as "not set"
+#    and falls back to the global default. Use `skip: true` to drop a product
+#    entirely; do not write empty strings to disable a voice.
+#
+# 3. Unknown locale names.
+#    A locale that appears in source_locale / target_locales but is not present
+#    under `tts:` here surfaces a runtime error at the Phase 9 dispatch. The
+#    error hint lists the built-in locales; the user must add a locale block to
+#    this file (or to the per-book manifest) before the pipeline can advance.
+#
+# 4. Typo'd locale names.
+#    Locale names are matched case-sensitively against the `tts:` keys. A typo
+#    such as `Ar:` (capital A) is treated as a different locale and triggers
+#    the same error as rule 3. Lowercase two-letter codes (`en`, `ar`) are the
+#    canonical names.

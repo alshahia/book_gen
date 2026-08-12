@@ -23,3 +23,13 @@ book-kit/exports/
 exports/
 reports/
 
+# Book2media (T-2026-08-10-001) runtime outputs: TTS audio + smoke test sandbox
+# + straggler test artifact directories from agent dispatches.
+shares/
+books/daily-focus-smoke/
+books/__test_reel_*/
+books/__test_video_horizontal_*/
+books/__test_video_trailer_*/
+books/__test_audiobook_*/
+/ab_*/
+

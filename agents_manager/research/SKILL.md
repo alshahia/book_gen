@@ -1,6 +1,6 @@
 ---
 name: am-research
-description: Research sub-agent. Load when the master (agents_manager) hands you a user task that needs analysis, brainstorming, doubt-finding, or investigation. You produce a research report — you do NOT plan or code. v0.18.0+ has browser-MCP tools for live-site research. v0.19.0+ also queries the codebase-memory graph for code-aware research.
+description: Research sub-agent. Load when the master (agents_manager) hands you a user task that needs analysis, brainstorming, doubt-finding, or investigation. You produce a research report — you do NOT plan or code. v0.18.0+ has browser-MCP tools for live-site research. v0.19.0+ also queries the codebase-memory graph for code-aware research. v1.3.0+ has a vision-OCR pipeline for analyzing scanned PDFs (Arabic novels, classical Islamic books, engineering textbooks) without tesseract — rasterize pages with `pdftoppm`, build a 12-page contact sheet with the `montage.ps1` helper, and read it via the model's vision.
 allowed-tools: Read, Bash (read-only; chub search/get/annotate/feedback; npm install -g @aisuite/chub on miss), grep, glob, webfetch, browsermcp_browser_navigate, browsermcp_browser_snapshot, browsermcp_browser_screenshot, browsermcp_browser_click, browsermcp_browser_console, codebase-memory_search_graph, codebase-memory_search_code, codebase-memory_get_architecture, codebase-memory_get_code_snippet, Write (share/notes/01_research_*, share/messages/*, agents_manager/research/**)
 triggers: research, investigate, brainstorm, doubt, analyze, explore, what do we know, browse this, look at the live site, scrape this page, check this URL, find this function, where is X defined, what calls Y, map the codebase, look up the docs for X, get current API for Y, latest version of Z
 preamble-tier: 2
@@ -295,6 +295,25 @@ For host setup see `book-kit/docs/ARCHITECTURE.md` section
 `book-kit/book_workflow/scripts/dedup_results.py`.
 
 The canonical tool catalog for the book-kit (P9 scripts, MCP wiring, env vars) is in **`book-kit/docs/TOOLKIT.md`**.
+
+---
+
+## Vision-OCR for scanned books (v1.3.0+)
+
+When a research task involves analyzing scanned PDFs (Arabic novels, classical Islamic books, engineering textbooks) where `pdftotext` returns 0 bytes or garbage, use this pipeline instead of installing tesseract:
+
+1. **Probe the text layer** with `pdftotext -l 1 -enc UTF-8 <pdf> <txt>`; if output is `<300` bytes the file is image-scan only.
+2. **Get page count** with `pdfinfo <pdf>` (poppler via winget; available at `C:\Users\Ahmad Mahmoud\AppData\Local\Microsoft\WinGet\Packages\oschwartz10612.Poppler_Microsoft.Winget.Source_8wekyb3d8bbwe\poppler-25.07.0\Library\bin\pdfinfo.exe` on the current host).
+3. **Rasterize 10–12 strategic pages** with `pdftoppm -r 150 -png -f X -l Y <pdf> <prefix>`. Sample pages: 1 (cover), 4 (title verso), 5 (TOC/copyright), 8 (intro), 12 (ch1 opening), then ~30%/60%/85% of total, plus the last 2 pages.
+4. **Build a 4×3 contact sheet** via PowerShell `System.Drawing` (helper script: `_style-guides/_tools/montage.ps1`).
+5. **Read the contact sheet via the model's vision** in one tool call — vision OCR is ~99% accurate on modern book typefaces (Arabic Naskh, Latin serif, code in monospace) at 150 DPI.
+6. **Write the analysis file** to `share/notes/01_research_<task-id>.md` with verbatim quotes, page numbers, structural notes.
+
+**Accuracy limits**: footnote numbers and Quranic orthographic marks (﴾ ﴿ brackets, muqatta'at letters: ص ط ظ) are ~95% accurate, not 100%. For word-perfect transcription, install tesseract via `winget install UB-Mannheim.TesseractOCR` + Arabic traineddata — but for style/structure analysis (which is most research tasks on books), vision-OCR is sufficient.
+
+**Helpers** live at `books_from_other_projects/_style-guides/_tools/` (3 scripts + README): `montage.ps1`, `montage_all.ps1`, `sample_books.ps1`. These are PowerShell 5.1 specific (System.Drawing on Windows GDI+) — won't work on Linux/macOS.
+
+**Use case**: any research task that previously would have required OCR. The pipeline is ~5 minutes per book end-to-end (rasterize + montage + read + writeup). Tested on 25+ Arabic and English books in the `_style-guides/` library buildout.
 
 ---
 

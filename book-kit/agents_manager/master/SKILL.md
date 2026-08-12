@@ -64,7 +64,7 @@ In book mode, the orchestrator's dispatch prompts override each specialist's def
 
 ## Book Kit boundary
 
-The Book Kit ships ONLY the orchestrator + writer + 5 specialists needed for book-gen. It does NOT ship `am-assets`, `am-investigate`, `am-ship`, or `am-health`. If a user asks for a non-book multi-step task, dispatch from the standard roster anyway; the missing specialists will simply produce no candidates and the task tool will surface the gap.
+The Book Kit ships ONLY the orchestrator + writer + 6 specialists needed for book-gen AND book2media. It does NOT ship `am-investigate`, `am-ship`, or `am-health`. `am-assets` is shipped as the book2media Phase 9 media-manifest gatekeeper (added 2026-08-11 when Phase 9 was scoped in). If a user asks for a non-book multi-step task, dispatch from the standard roster anyway; the missing specialists will simply produce no candidates and the task tool will surface the gap.
 
 ## Task tracking
 

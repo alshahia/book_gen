@@ -102,6 +102,8 @@ Update progress ledger with confirmation status.
 
 Dispatch `am-design` with: intake (esp. tone/voice references) + outline + style-guide template. Produces `books/<slug>/style-guide.md` with two sections: **Presentation** and **Voice**.
 
+> **Style archetype library:** when picking the voice/tone for the book, instruct am-design to consult `books_from_other_projects/_style-guides/SHORT_STYLE_SUMMARY.md` first — 29 archetypes already analyzed across 90+ books. Pick 1–2 archetypes as the structural backbone (never invent a new template when a known one fits). Per-book analyses live in `_style-guides/<family>/` for deeper detail (signature phrases, citation styles, cover conventions, etc.).
+
 For fiction/hybrid category: also cover POV + tense.
 
 **Required user gate.** Present style guide to user. Update progress ledger.
@@ -343,7 +345,7 @@ The script scans top-level `00_*.md` through `08_*.md` reports, groups them by p
 - Master CANNOT skip user-confirmation gates (intake field-by-field, outline, style-guide, writing-plan).
 - Master CANNOT resolve material research contradictions — those surface to the user at Phase 3.
 - Master MUST respect `max_fix_loops = 3` per chapter's review loop (same rule as the controller's build/review cycle).
-- Master MUST NOT dispatch non-book-gen agents (no `am-assets` — books don't have a video asset pipeline; no `am-investigate` unless the user reports a bug).
+- Master MUST NOT dispatch non-book-gen agents during Phases 0-8 (no `am-assets` for visual-template manifests unless declared in the book's intake; no `am-investigate` unless the user reports a bug). Master MAY dispatch book2media-orchestrator at Phase 9 per user `--media` flag.
 - Master MUST close the task when the user says "done" or when every chapter is `approved` AND the copy-edit pass is clean.
 
 ## Relationship to the existing agents_manager pipeline

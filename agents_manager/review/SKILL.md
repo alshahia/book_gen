@@ -265,6 +265,24 @@ In v0.5.0, the OpenCode permission layer is not used. Writes only fail for real 
 3. **CONTINUE with what you CAN do.** Write the report, run tests, return to master with the error.
 4. **CRITICAL — do not fix source code even though you technically could now.** The reviewer's job is to report, not to fix. Edit-integrity violation: if you find a bug, surface it as a `FAIL` in the report and let master dispatch `am-coder` to fix it. The soft-wall "you cannot edit source code" is a process contract, not a technical block.
 
+## Locale-correctness gate (book2media Phase 9)
+
+When master dispatches you with a Phase 9 review prompt (cited in the dispatch via `share/notes/03_coder_summary_*_phase9_*.md` or similar), you run the **locale-correctness gate** alongside any normal per-product validation. The gate validates five per-product invariants. Failure of any check is a `[CRITICAL]` if it breaks runtime (e.g., Arabic font absent and locale is `ar`); `[HIGH]` if the user-visible output is wrong but not broken.
+
+### Per-product checks
+
+For each product in `books/<slug>/media-locale-manifest.json`:
+
+1. **Voice matches locale** -- the `voice` field in the synthesized audio metadata matches the voice resolved via three-tier provider resolution (per-book manifest wins, `providers.yaml` next, built-in defaults last). Reject if they differ; cite both the manifest voice and the synthesized voice.
+2. **Arabic font Amiri present when locale = ar** -- `libass` font lookup for `Amiri` succeeds on the host. Run `fc-list | grep -i amiri` (Linux/macOS) or check `%LOCALAPPDATA%\fonts\Amiri\` (Windows). If absent, FAIL with the install hint from `book-kit/book_workflow/scripts/install_amiri.py`.
+3. **RTL flag true when locale = ar** -- the `.ass` file's `[V4+ Styles]` block contains `WrapStyle=2` AND the burn-in argv shows `ass=...:shaping=complex`. Verify via `ffprobe` of the rendered file or the assembler's stderr log.
+4. **Cover image resolves via fallback ladder** -- the first entry of `cover_image_fallback_ladder` in the manifest exists on disk; if absent, every fallback entry must be tried in order. If none resolve, FAIL with the resolved-path attempts in the evidence.
+5. **Translation manifest referenced when `source_locale != target_locale`** -- if the product's locale differs from the manifest's `source_locale`, verify either (a) `books/<slug>/source-map.md` exists AND the chapter was translated by book-gen's Branch A review, or (b) `chapters/ch-NN-ar.txt` exists alongside `ch-NN-<locale>.wav`. Missing both = FAIL with the chapter filename cited.
+
+### Cite
+
+Cross-reference `book-kit/docs/TOOLKIT.md` for the canonical locale-resolution rule and the per-tool CLI shapes. The TOOLKIT file is the registry of record; do not duplicate the rules here.
+
 ## Recommending `am-investigate` dispatch (v0.18.0+)
 
 When a finding is `[CRITICAL]` (bug ships broken code) or `[HIGH]` (degrades correctness) AND the root cause is not obvious from your read, add a `## Recommend am-investigate` block to your report listing the findings that need root-cause work. Master reads this and dispatches `am-investigate` (not `am-coder`) for those findings — the debugger finds the cause, then master dispatches `am-coder` to apply the fix.

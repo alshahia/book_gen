@@ -2,6 +2,43 @@
 
 All notable changes to the `agents_manager` system. Newest on top.
 
+## v1.3.0 — vision-OCR for scanned books + 29-archetype style library (2026-08-10)
+
+**New capability: scan-style book analysis without tesseract.** Additive MINOR bump. Built on the host machine where `pdftotext`/`pdftoppm`/`pdfinfo` are available via winget-poppler but tesseract is NOT installed. Three PowerShell helpers at `books_from_other_projects/_style-guides/_tools/` make the pipeline reproducible across sessions.
+
+### What's new
+
+1. **Vision-OCR pipeline for scanned PDFs (no tesseract required).** `agents_manager/research/SKILL.md` now documents a 6-step recipe for analyzing image-scan PDFs:
+   - probe text layer (`pdftotext -l 1`) → if <300 bytes, the file is scan-only;
+   - get page count (`pdfinfo`);
+   - rasterize 10–12 strategic pages (`pdftoppm -r 150`);
+   - build a 4×3 contact sheet (PowerShell `System.Drawing`);
+   - read the contact sheet via the model's vision (one tool call = 12 pages);
+   - write the analysis to `share/notes/01_research_<task-id>.md`.
+   Accuracy: ~99% on modern Arabic Naskh, Latin serif, code in monospace at 150 DPI. Footnote digits and Quranic orthographic marks are ~95%, not 100%.
+
+2. **Three PowerShell tool helpers** at `books_from_other_projects/_style-guides/_tools/` with a README:
+   - `montage.ps1` — single contact-sheet builder (one invocation = one PNG grid).
+   - `montage_all.ps1` — batch builder that iterates every subfolder under a root.
+   - `sample_books.ps1` — JSON-driven PDF rasterizer (decouples "which books" from "how to rasterize").
+   All three are PowerShell 5.1 specific (`System.Drawing` on Windows GDI+) — documented in the README.
+
+3. **29-archetype style library** at `books_from_other_projects/_style-guides/`:
+   - `SHORT_STYLE_SUMMARY.md` is the at-a-glance index of 29 archetypes covering Western technical (Brownlee tutorial loop, Géron conversational engineering, ISLP academic textbook, Wiley For Dummies, O'Reilly minimalist), Arabic philosophical essay (Mostafa Mahmoud, 10 books), classical Islamic history (Ibn Kathir, 4 volumes), translated Arabic non-fiction (LEXUS/OLIVE TREE, عالم المعرفة series), Arabic historical/conspiracy (Madbouly Library, Hulagu/Dynasties/Rothschilds/Protocols), modern Islamic handbook, classical Islamic-biographical, Quran commentary (academic + royal trust), Pistachio Theory-style blog essay, and more.
+   - Per-book analyses live in `_style-guides/<family>/<book> - STYLE_ANALYSIS.md` (27 files across 11 family folders in the buildout; library is open-ended — add more analyses as new books are scanned).
+   - `book_workflow/book-agents/templates/style-guide.md` now has an "Archetype picks" section pointing at the library.
+   - `agents_manager/book-gen-orchestrator/SKILL.md` Phase 4 now instructs `am-design` to consult the library first.
+
+### What did NOT change
+- Controller `VERSION` is still implicit (no `VERSION` file in this repo). This is the first time the CHANGELOG documents a version string — `v1.3.0`. Future controller releases will follow the same convention.
+- No tests for the new pipeline (it's a runtime helper, not testable in isolation). Acceptance is "did the analysis files get written and read correctly" — verified manually across 25+ books in the source buildout.
+
+### Known limitations of the vision-OCR approach
+- 12-page contact sheets cap practical batch size; for a 1500-page book, you still sample 10–12 pages, not read the whole thing.
+- Arabic-Indic numerals and Quranic marks get ~95% accuracy, not 100%. For word-perfect transcription, install tesseract.
+- The pipeline assumes Windows GDI+ via `System.Drawing`; won't work on Linux/macOS without porting to Pillow/ImageMagick.
+- Vision OCR is ~5 min/book end-to-end; not faster than tesseract for transcription, but faster than nothing for analysis.
+
 ## v1.2.0 — book-kit roadmap complete + tool awareness (2026-08-08)
 
 **Eighteen-phase book-kit roadmap (T-2026-08-05-001) is closed.** Additive MINOR bump — `book-kit/VERSION` 1.1.0 → 1.2.0. Eighteen new tools shipped, one new MCP, two new templates, three docs indexes. 218/218 tests pass on a fresh run. The 18 phases are listed verbatim in the **Book-kit changes** sub-section at the bottom of this block. Two fix-loops burned: P10 (npm 404 → `LanguageTool` MCP DEFERRED) and P18 (book-kg idempotency → re-index logic rewritten to drop nothing, only upsert). The new `book-kit/docs/TOOLKIT.md` (351 lines) is now the canonical registry; 15 SKILL.md files were updated to point at it instead of duplicating tool lists.
