@@ -333,7 +333,7 @@ def _probe_duration_seconds(audio_path):
 
 
 def _build_filter_arg(audio_dur, burn_subs, subs_path, bgm_path,
-                     scale_mult=SCALE_MULT_DEFAULT):
+                     scale_mult=SCALE_MULT_DEFAULT, waveform=False):
     """Build the -filter_complex argument for one reel render.
 
     Shape (per dispatch spec):
@@ -343,21 +343,54 @@ def _build_filter_arg(audio_dur, burn_subs, subs_path, bgm_path,
                                                                 (if --bgm)
         vignette=PI/4[v]                                       (final, always)
 
+    Optional waveform overlay (if --waveform):
+        A separate chain on the audio stream [1:a] is built with
+        showwaves to produce a 2D waveform video [wf], then overlayed
+        near the bottom of the frame via [v_main][wf]overlay.
+
     Returns the joined filter string ready for ffmpeg's -filter_complex.
+    Comma-joins filter tokens in the same chain; semicolons separate
+    parallel chains (e.g. the audio-waveform chain from the main video
+    chain).
     """
     chain = ffmpeg_zoompan.supersample_zoompan_filterchain(
         target_w=TARGET_W, target_h=TARGET_H, dur_s=audio_dur,
         scale_mult=scale_mult,
     )
     parts = list(chain)
+    # The zoompan chain output label is whatever the filterchain emits;
+    # for v1 it terminates with "[v_base]" (see ffmpeg_zoompan.py).
+    # When we append ass=/amix, we re-label the previous video output so
+    # the next stage can consume it cleanly.
+    main_label = "v_main"
     if burn_subs and subs_path is not None:
-        parts.append("ass=%s:shaping=complex" % subs_path.as_posix())
+        parts.append("ass=%s:shaping=complex[%s]" % (subs_path.as_posix(), main_label))
     if bgm_path is not None:
         # Per dispatch spec: append this literal token. The trailing [v]
         # re-labels the previous filter's output for the next stage
         # (vignette). Kept verbatim per spec; reviewer can flag if
         # ffmpeg's local build rejects amix inside a video filter chain.
         parts.append("amix=inputs=2:duration=first:dropout_transition=0[v]")
+    # Optional waveform: a parallel chain on [1:a] producing [wf], then
+    # overlayed on the main video. We append the showwaves chain to the
+    # main chain with a semicolon, then add an overlay step.
+    if waveform:
+        wf_chain = (
+            "[1:a]showwaves=s=1080x160:mode=cline:colors=white@0.75:"
+            "rate=30,format=yuva420p[wf]"
+        )
+        # The overlay uses the (possibly relabelled) main video stream.
+        # When burn_subs was on, main_label is "v_main"; otherwise the
+        # base zoompan output is the unlabelled "[v_base]" which the
+        # zoompan lib returns. We need to reference whichever label
+        # actually exists in the chain.
+        if burn_subs and subs_path is not None:
+            base_in = "[%s]" % main_label
+        else:
+            base_in = "[v_base]"
+        overlay_step = "%s[wf]overlay=0:H-h-40:format=auto[v_main2]" % base_in
+        # Stitch together: main chain (parts) + showwaves chain + overlay.
+        return ",".join(parts) + ";" + wf_chain + ";" + overlay_step + "," + "vignette=PI/4[v]"
     parts.append("vignette=PI/4[v]")
     return ",".join(parts)
 
@@ -433,7 +466,8 @@ def _run_ffmpeg(cmd):
 
 
 def _render_reel(book_dir, ch_id, out_path, cover_arg, audio_path,
-                 bgm_path=None, burn_subs=False, subs_path=None):
+                 bgm_path=None, burn_subs=False, subs_path=None,
+                 waveform=False):
     """Render a single vertical reel MP4. Returns a manifest-entry dict.
 
     Honors the cover fallback ladder via `_resolve_cover`. Validates
@@ -446,7 +480,8 @@ def _render_reel(book_dir, ch_id, out_path, cover_arg, audio_path,
     if not audio_path.exists():
         raise InputError("audio not found: %s" % audio_path)
     audio_dur = _probe_duration_seconds(audio_path)
-    filter_arg = _build_filter_arg(audio_dur, burn_subs, subs_path, bgm_path)
+    filter_arg = _build_filter_arg(audio_dur, burn_subs, subs_path, bgm_path,
+                                    waveform=waveform)
     argv = _build_ffmpeg_argv(
         cover_path, audio_path, bgm_path, filter_arg, out_path,
     )
@@ -587,6 +622,7 @@ def _build_ffmpeg_argv_multi(platforms, cover_path, audio_path, bgm_path,
 def _render_reel_multi(book_dir, ch_id, platforms, out_paths,
                        cover_arg, audio_path, bgm_path=None,
                        burn_subs=False, subs_path=None,
+                       waveform=False,
                        scale_mult=SCALE_MULT_DEFAULT,
                        vcodec=VCODEC_DEFAULT, vpreset=VPRESET_DEFAULT):
     """Render N platform variants serially from one source video.
@@ -653,12 +689,34 @@ def _render_reel_multi(book_dir, ch_id, platforms, out_paths,
                 align = spec["alignment"]
                 sub_path_esc = subs_path.as_posix().replace("\\", "/")
                 sub_path_esc = sub_path_esc.replace("'", "'\\''")
+                # NOTE: ffmpeg's gyan.dev 2025-08 build does not support
+                # force_style on the ass/subtitles filter. We use
+                # original_size=1080x1920 + shaping=complex (matrix-typed
+                # filter, must escape the drive-colon in the path as \\:
+                # so ffmpeg does not parse it as an option separator).
+                # Per-platform caption positioning is deferred to a
+                # per-platform ASS prebake at srt_to_ass time.
                 v_segs.append(
-                    "ass=%s:force_style='Alignment=%d':shaping=complex"
-                    % (sub_path_esc, align)
+                    "ass=%s:original_size=1080x1920:shaping=complex"
+                    % sub_path_esc.replace(":", "\\\\:")
                 )
             v_segs.append("vignette=PI/4")
-            v_filter = "[0:v]" + ",".join(v_segs) + "[v]"
+            if waveform:
+                # 3-segment chain: produce a [wf] parallel stream from
+                # the audio via showwaves, then overlay it on the
+                # post-vignette video at the bottom with a 40px margin.
+                v_base_filter = "[0:v]" + ",".join(v_segs) + "[v_pre]"
+                v_overlay = (
+                    "[v_pre][wf]overlay=0:H-h-40:format=auto[v]"
+                )
+                v_filter = v_base_filter + ";" + v_overlay
+                wf_chain = (
+                    "[1:a]showwaves=s=1080x160:mode=cline:"
+                    "colors=white@0.75:rate=30,format=yuva420p[wf]"
+                )
+            else:
+                v_filter = "[0:v]" + ",".join(v_segs) + "[v]"
+                wf_chain = None
             a_filter = (
                 "[1:a]loudnorm=I=%s:TP=%s[a]"
                 % (
@@ -666,11 +724,16 @@ def _render_reel_multi(book_dir, ch_id, platforms, out_paths,
                     _fmt_loudnorm(spec["loudnorm_TP"]),
                 )
             )
-            platform_filter = "%s;%s" % (v_filter, a_filter)
+            if wf_chain is not None:
+                platform_filter = "%s;%s;%s" % (wf_chain, v_filter, a_filter)
+            else:
+                platform_filter = "%s;%s" % (v_filter, a_filter)
             platform_argv = [
                 ffmpeg, "-y",
                 "-i", str(base_video),
                 "-i", str(audio_path),
+            ]
+            platform_argv.extend([
                 "-filter_complex", platform_filter,
                 "-map", "[v]",
                 "-map", "[a]",
@@ -679,7 +742,7 @@ def _render_reel_multi(book_dir, ch_id, platforms, out_paths,
                 "-c:a", ACODEC, "-b:a", ABITRATE,
                 "-shortest",
                 str(out_path),
-            ]
+            ])
             _run_ffmpeg(platform_argv)
             entries.append({
                 "chapter_id": ch_id,
@@ -748,6 +811,7 @@ def _write_manifest(book_dir, entries, vcodec=VCODEC_DEFAULT):
 
 def run_reel(book_arg, chapter, out_arg, cover_arg, audio_arg,
              locale, bgm_arg=None, burn_subs=False, subs_arg=None,
+             waveform=False,
              platforms=DEFAULT_PLATFORMS,
              scale_mult=SCALE_MULT_DEFAULT, vcodec=VCODEC_DEFAULT,
              vpreset=VPRESET_DEFAULT):
@@ -874,6 +938,7 @@ def run_reel(book_arg, chapter, out_arg, cover_arg, audio_arg,
             bgm_path=bgm_path,
             burn_subs=burn_subs,
             subs_path=subs_path,
+            waveform=waveform,
             scale_mult=scale_mult,
             vcodec=vcodec,
             vpreset=vpreset,
@@ -947,6 +1012,9 @@ def _build_parser():
     p.add_argument("--subs",
                    help="ASS subtitle path (under repo root; required with "
                         "--burn-subs).")
+    p.add_argument("--waveform", action="store_true",
+                   help="Overlay a voice waveform visualizer (ffmpeg "
+                        "showwaves) at the bottom of the reel. Default off.")
     p.add_argument("--platforms", default="yt,ig,tiktok",
                    help="Comma-separated list of platforms to fan out to. "
                         "Allowed: yt, ig, tiktok. Default: yt,ig,tiktok. "
@@ -978,6 +1046,7 @@ def main(argv=None):
         bgm_arg=args.bgm,
         burn_subs=args.burn_subs,
         subs_arg=args.subs,
+        waveform=args.waveform,
         platforms=args.platforms,
         scale_mult=args.scale_mult,
         vcodec=args.vcodec,

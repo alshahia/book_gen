@@ -86,7 +86,7 @@ When master dispatches you with the user signal `--media` (or equivalent book2me
 
 ### Per-book manifest
 
-Produce `books/<slug>/media-locale-manifest.json` per the user `--media` flag. The manifest schema is embedded in `book-kit/book_workflow/scripts/media_manifest.py` at L96-L145 (no standalone `.json` file). The manifest lists every product (audiobook M4B, video-horizontal-m1, video-vertical-trailer, video-vertical-reel) per locale with `tts_provider`, `voice`, `skip`, `translation_required`, and `cover_image_fallback_ladder`.
+Produce `books/<slug>/media-locale-manifest.json` per the user `--media` flag. The manifest schema is embedded in `book-kit/book_workflow/scripts/media_manifest.py` at L96-L145 (no standalone `.json` file). Unlike `cinematic-landing`'s `assets/MANIFEST.json` (asset-catalog: list of asset objects), this is product-matrix shape: book x locales -> products array. The manifest lists every product (audiobook M4B, video-horizontal-m1, video-vertical-trailer, video-vertical-reel) per locale with `tts_provider`, `voice`, `skip`, `translation_required`, and `cover_image_fallback_ladder`.
 
 ### Validator + generator
 

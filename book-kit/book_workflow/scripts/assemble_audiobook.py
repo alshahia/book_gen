@@ -638,10 +638,13 @@ def _enforce_voice_policy(book_dir, locale):
     if not product_voice:
         # No audiobook product for this locale -> no policy to enforce.
         return
-    # Collect every (chapter, voice) pair the TTS run actually used.
+    # Collect every (chapter, voice) pair the TTS run actually used,
+    # filtered by the requested locale to avoid cross-locale false mismatches.
     synthesised = {}
     for entry in tts_data.get("chunks", []):
         if not isinstance(entry, dict):
+            continue
+        if entry.get("locale") != locale:
             continue
         ch = entry.get("chapter")
         voice = entry.get("voice")

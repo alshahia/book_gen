@@ -109,6 +109,37 @@ This pre-empts the next person who notices the 	ask_id field exists in the tool 
 **Reversibility:** delete the new ### Runtime contract subsection. ~30 seconds.
 
 **Not done:** the version pin (option 1). Stays available if a real breakage happens.
+## 2026-08-13 — T-2026-08-10-001 Phase 1 BLOCKER resolution: Path B (amend docs) over Path A (generate standalone schema JSON)
+
+**Source:** `share/reports/04_review_T-2026-08-10-001_phase1.md` BLOCKER-1. Four docs (`agents_manager/book2media-orchestrator/SKILL.md:60`, `agents_manager/assets/SKILL.md:89`, `book-kit/docs/TOOLKIT.md:354`, `book-kit/docs/SCRIPTS.md:35`) referenced a non-existent `schemas/media-locale-manifest.schema.json` file. The schema lived embedded in `book-kit/book_workflow/scripts/media_manifest.py:96-145` as a Python dict.
+
+**Decision:** Path B — amend the 4 docs to point at the embedded location. Rejected Path A (generate a standalone `.json` from the Python dict) and Path C (move the schema out of `media_manifest.py` to a real file).
+
+**Ponytail reasoning:**
+- **Path A** creates a duplicate source-of-truth (Python dict + JSON file). The script's own docstring explicitly worried about this drift: "embed or it drifts". Any future schema change would need to update both.
+- **Path B** keeps the in-code dict as single source of truth, fixes the doc/code drift with 4 doc-line edits (smaller diff than Path A's 1-file-write + no-doc-edits), and zero risk of future drift.
+- **Path C** (not proposed, but considered) — moving the schema out of `media_manifest.py` would require either (a) loading the JSON at startup (extra `jsonschema` dep at every CLI invocation) or (b) re-embedding it back into the script (same as Path A). Both heavier than Path B.
+
+**Fix-loop 1 (am-coder) applied 4 doc edits:**
+- `agents_manager/book2media-orchestrator/SKILL.md:60` — replaced missing-path reference with `embedded in \`book-kit/book_workflow/scripts/media_manifest.py\` at L96-L145 (no standalone \`.json\` file)`.
+- `agents_manager/assets/SKILL.md:89` — same replacement pattern.
+- `book-kit/docs/TOOLKIT.md:353` — same replacement pattern (cite was off by 1 from review's `:354` — reviewer verified post-edit).
+- `book-kit/docs/SCRIPTS.md:37` — same replacement pattern (cite was off by 2 from review's `:35` — reviewer verified post-edit).
+
+**WARNs deferred per dispatch rule 9 (fix only what was flagged):**
+- WARN-1: SyntaxWarning at `media_manifest.py:46` — non-reproducible per am-review re-validation (`-W all`, `-X dev`); marked resolved.
+- WARN-2: empty-string voice schema gap — explicitly deferred to Phase 4 reviewer per original review self-critique.
+- WARN-3: `assets/SKILL.md` schema-shape-contrast callout -- 1-line addition; disposition IN FLIGHT (fold-in dispatched via fix-loop 2).
+- WARN-4: 3 uncommitted drift files unrelated to book2media -- master's lane; 2 of 3 already processed in a separate pass; `book_workflow/book-agents/templates/style-guide.md` (+7 lines) revert DISPATCHED via fix-loop 2.
+
+**Re-review verdict:** PASS (0 FAIL / 0 WARN / 1 PASS). Phase 1 closed. Book2media plan now fully reviewed end-to-end across all 6 plan sub-phases.
+
+**Side effect on task tracker:** P3T5 (`schemas/media-locale-manifest.schema.json` + `validate_media_manifest.py --init`) reclassified from `todo` to `skipped` — Path B de-scoped the standalone JSON deliverable; `media_manifest.py` carries both `validate` and `generate` subcommands. P3T7 (`book_check.py --require-media-manifest` gate) + P3T8 (`test_media_manifest.py`) remain `todo` — both are ship-blocking or ship-deferrable per master's call.
+
+**Reversibility:** trivial. Each edit is one line. Rollback = restore the original `at \`agents_manager/book2media-orchestrator/schemas/media-locale-manifest.schema.json\`` text in all 4 docs.
+
+**Ponytail note:** fix was minimal — 4 doc lines, zero code. No new files. No new agents. No new phases. The single-source-of-truth principle (one place where the schema lives) beat the symmetry principle (have a real `.json` file because docs traditionally point at one).
+
 ## 2026-08-05 — Book-Kit Tool Roadmap (T-2026-08-05-001) — 18 phases approved
 
 **Source:** User directive. Two recommendation lists from past agents (city-of-memories fiction + ai-agents-with-python technical) cross-referenced against `book-kit` v1.1.0 inventory; produced 18-phase roadmap with cumulative ~15-day effort.
@@ -127,3 +158,27 @@ This pre-empts the next person who notices the 	ask_id field exists in the tool 
 **Reversibility:** trivial. Each phase is one commit; rollback = revert commit. Plan is at `share/notes/02_plan_T-2026-08-05-001_book-kit-roadmap.md`.
 
 **Ponytail note:** 18 phases not 18 separate kits. Phases 1–8 are script/template changes (kit improvements). Phases 9–14 are external tool integrations (MCPs/CLIs). Phases 15–17 are workflow doc updates. Phase 18 is the only true new infrastructure piece (FastMCP + SQLite). Kept the big lift last so smaller phases establish patterns first.
+## 2026-08-13 - T-2026-08-10-001 ship-now decision (m0020)
+
+**Source:** User picked "Ship now (Recommended)" on m0020 phase-1-fix-loop-passed gate. Four bundled decisions:
+1. Tag v1.3.0 today (user-driven commit + tag per AGENTS.md hard rule "Do NOT commit unless explicitly asked").
+2. Defer P3T7 (`book_check.py --require-media-manifest` flag) + P3T8 (`book-kit/tests/test_media_manifest.py`) to v1.3.1.
+3. Fold WARN-3 (`agents_manager/assets/SKILL.md` 1-line schema-shape-contrast callout per design review F5) into the v1.3.0 commit.
+4. Revert WARN-4-style-guide.md (`book_workflow/book-agents/templates/style-guide.md` +7 lines, unrelated to book2media) for a clean worktree.
+
+**Decision:** Ship now. All 4 bundled decisions are reversible individually; deferring P3T7/P3T8 is the most consequential -- v1.3.0 ships without the manifest-presence gate, so a book without `media-locale-manifest.json` will not be flagged at `book_check.py` time. Phase 9 dispatch wiring carries the enforcement for now.
+
+**Fix-loop 2 dispatched (am-coder):** WARN-3 fold-in to `agents_manager/assets/SKILL.md` (1 line) + `git checkout HEAD -- book_workflow/book-agents/templates/style-guide.md`. Re-review will verify (a) ASCII-clean additions, (b) style-guide.md reverted, (c) no other files modified.
+
+**Ponytail reasoning:**
+- P3T7 deferral: the gate is the right tool long-term (catches drift between plan and check), but the immediate need is Phase 9 wiring that already enforces it. Adding the flag without exercising it ships dead code.
+- P3T8 deferral: `media_manifest.py` was reviewed end-to-end against `books/ai-agents-with-python/` (Phase 1 review's test table). pytest adds regression value, not correctness value at v1.3.0 ship time.
+- WARN-3 fold-in: 1 line, design F5's intent already in spirit (the section explicitly handles "media-manifest lane"); the explicit contrast prevents a future reader from confusing the two schemas. Trivially safe.
+- style-guide.md revert: +7 lines of archetype library callout has no provenance in T-2026-08-10-001. Belongs to a different workstream or should be its own commit; not part of book2media.
+
+**Reversibility:**
+- P3T7/P3T8 defer: pick them up in v1.3.1 dispatch (one coder task each, ~30 min total).
+- WARN-3 fold-in: revert the 1 line at `agents_manager/assets/SKILL.md`.
+- style-guide.md revert: re-apply the +7 lines if the callout was intended.
+
+**Side effect on task tracker:** P3T7 + P3T8 reclassified `todo` -> `skipped` (deferred to v1.3.1). Loop counts updated to `{P3: 1, P4: 0}`.
