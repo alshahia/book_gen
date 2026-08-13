@@ -1,12 +1,18 @@
-# book_gen
+# agents-manager controller + book-kit
 
-[![Release v1.0.0](https://img.shields.io/badge/release-v1.0.0-blue)](https://github.com/ahmadmhmdsy/book_gen/releases/tag/v1.0.0)
-[![Tests](https://img.shields.io/badge/tests-63%20passed-green)](book-kit/tests)
+[![Release v1.3.0](https://img.shields.io/badge/controller-v1.3.0-blue)](agents_manager/CHANGELOG.md)
+[![book-kit v1.3.0](https://img.shields.io/badge/book--kit-v1.3.0-green)](book-kit/CHANGELOG.md)
+[![Tests](https://img.shields.io/badge/tests-324%20passed-green)](book-kit/tests)
 [![License MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-> **Write long-form books with multi-agent orchestration.** OpenCode + agents-manager + 7-phase pipeline + 7 scripts + 18 templates. Native books AND translations (Arabic, etc.) ship first-class.
+> **Multi-agent orchestration kit.** OpenCode + master + 9 specialists + 7-phase pipeline. Ship as `agents-manager` controller or as `book-kit` (book-generation specialization with audio/video/reels -- 13 scripts + 2 lib helpers).
 
-This repo is a **book-generation system** built on top of the [agents-manager](https://github.com/ahmadmhmdsy/agents-manager) multi-agent orchestration kit. You give it "write a book about X" (or "translate book Y to Arabic") and it walks through 7 phases — intake, skeleton, research, outline, style, writing-plan, write+review — producing a complete manuscript at `books/<slug>/chapters/`.
+This repo IS the **agents-manager controller**: an OpenCode multi-agent orchestration system. `book-kit/` is a separate shippable that packages agents-manager + book-gen + book2media specializations for downstream projects.
+
+## What you get
+
+- **Controller** (`agents_manager/`): 10 agents (`master` + 9 specialists) defined in `opencode.jsonc`. Adaptive pipeline (research -> plan -> build -> review -> ship). chub context-hub for external libs.
+- **Book-kit** (`book-kit/`): portable specialization. 13 scripts for TTS, captions, ffmpeg assembly. 18 templates for book-gen. 324 pytest tests. 5 product families x 2 locales smoke-tested.
 
 ## Quick start
 
