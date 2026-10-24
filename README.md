@@ -1,4 +1,4 @@
-# agents-manager controller + book-kit
+# book_gen: book-kit + agents-manager controller
 
 [![Release v1.3.0](https://img.shields.io/badge/controller-v1.3.0-blue)](agents_manager/CHANGELOG.md)
 [![book-kit v1.3.0](https://img.shields.io/badge/book--kit-v1.3.0-green)](book-kit/CHANGELOG.md)
@@ -7,7 +7,7 @@
 
 > **Multi-agent orchestration kit.** OpenCode + master + 9 specialists + 7-phase pipeline. Ship as `agents-manager` controller or as `book-kit` (book-generation specialization with audio/video/reels -- 13 scripts + 2 lib helpers).
 
-This repo IS the **agents-manager controller**: an OpenCode multi-agent orchestration system. `book-kit/` is a separate shippable that packages agents-manager + book-gen + book2media specializations for downstream projects.
+This repo bundles the **agents-manager controller**: an OpenCode multi-agent orchestration system. `book-kit/` is a separate shippable that packages agents-manager + book-gen + book2media specializations for downstream projects.
 
 ## What you get
 
@@ -20,7 +20,7 @@ This repo IS the **agents-manager controller**: an OpenCode multi-agent orchestr
 
 ```sh
 # 1. Install the book-kit into your project
-git clone https://github.com/ahmadmahmoudsy/book_gen
+git clone https://github.com/alshahia/book_gen
 cd book_gen/book-kit
 python install.py
 
